@@ -1,0 +1,80 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import React,{act} from 'react';
+import {JSDOM} from 'jsdom';
+import {createServer} from 'vite';
+
+test('show at most three file rows and open the complete list with working file previews',async()=>{
+ const dom=new JSDOM('<div id="root"></div>');
+ const globals=['window','document','IS_REACT_ACT_ENVIRONMENT'];
+ const previous=globals.map(key=>globalThis[key]);
+ globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
+ dom.window.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
+ const calls=[];
+ dom.window.__TAURI_INTERNALS__={invoke:async(cmd,args)=>{calls.push({cmd,args});return {kind:'text',text:'文件内容'};}};
+ const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false},appType:'custom'});
+ let root;
+ try{
+  const {createRoot}=await import('react-dom/client');
+  const {ChangedFiles}=await vite.ssrLoadModule('/src/ChangedFiles.jsx');
+  const {LinkProvider}=await vite.ssrLoadModule('/src/LinkPreview.jsx');
+  root=createRoot(document.getElementById('root'));
+  const files=Array.from({length:5},(_,i)=>({path:`D:/project/src/file${i}.js`,kind:i===4?'delete':'update'}));
+  const render=files=>act(async()=>root.render(React.createElement(LinkProvider,{cwd:'D:/project',scope:'thread'},React.createElement(ChangedFiles,{files,cwd:'D:/project'}))));
+  await render(files);
+  assert.equal(document.querySelectorAll('.changed-files-summary .changed-file-row').length,3);
+  assert.match(document.querySelector('.changed-files-more').textContent,/另有 2 个文件/);
+  assert.equal(document.querySelector('dialog'),null);
+  const directFile=document.querySelector('.changed-files-summary .changed-file-row');
+  directFile.focus();
+  await act(async()=>directFile.click());
+  assert.equal(document.querySelector('.changed-files-dialog'),null);
+  assert.equal(document.querySelectorAll('dialog').length,1);
+  assert.equal(document.querySelector('dialog pre').textContent,'文件内容');
+  await act(async()=>document.querySelector('dialog header button').click());
+  assert.equal(document.querySelector('dialog'),null);
+  assert.equal(document.activeElement,directFile);
+  calls.length=0;
+  const summary=document.querySelector('.changed-files-more');
+  summary.focus();
+  await act(async()=>summary.click());
+  const list=document.querySelector('.changed-files-dialog');
+  assert.equal(list.querySelectorAll('li').length,5);
+  assert.equal(list.querySelectorAll('button.changed-file-row:disabled').length,1);
+  const fileButton=list.querySelector('button.changed-file-row');
+  fileButton.focus();
+  list.querySelector('.file-preview-body').scrollTop=73;
+  await act(async()=>fileButton.click());
+  assert.deepEqual(calls,[{cmd:'read_file_preview',args:{path:'D:/project/src/file0.js'}}]);
+  assert.equal(document.querySelectorAll('dialog').length,2);
+  assert.equal(document.querySelectorAll('dialog[open]').length,1);
+  assert.equal(list.hasAttribute('open'),false);
+  assert.equal(document.querySelector('dialog pre').textContent,'文件内容');
+  assert.equal(document.querySelector('dialog[open] button').textContent,'返回');
+  await act(async()=>document.querySelector('dialog:not(.changed-files-dialog) button').click());
+  assert.equal(document.querySelectorAll('dialog').length,1);
+  assert.equal(list.hasAttribute('open'),true);
+  assert.equal(list.querySelector('.file-preview-body').scrollTop,73);
+  assert.equal(document.activeElement,fileButton);
+  await act(async()=>fileButton.click());
+  assert.equal(document.querySelectorAll('dialog[open]').length,1);
+  await act(async()=>document.querySelector('dialog[open]').dispatchEvent(new dom.window.Event('cancel',{cancelable:true})));
+  assert.equal(document.querySelectorAll('dialog').length,1);
+  assert.equal(list.hasAttribute('open'),true);
+  await act(async()=>list.dispatchEvent(new dom.window.Event('cancel',{cancelable:true})));
+  assert.equal(document.querySelector('dialog'),null);
+  assert.equal(document.activeElement,summary);
+  for(const count of [1,2,3,4]){
+   await render(files.slice(0,count));
+   assert.equal(document.querySelectorAll('.changed-files-summary .changed-file-row').length,Math.min(3,count));
+   assert.equal(!!document.querySelector('.changed-files-more'),count>3);
+   assert.equal(!!document.querySelector('button.changed-files-heading'),count>3);
+  }
+  await render([]);
+  assert.equal(document.querySelector('.changed-files'),null);
+ }finally{
+  if(root)await act(async()=>root.unmount());
+  await vite.close();globals.forEach((key,index)=>{globalThis[key]=previous[index];});dom.window.close();
+ }
+});

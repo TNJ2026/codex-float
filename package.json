@@ -1,0 +1,31 @@
+{
+  "name": "codex-float",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",
+    "build": "vite build",
+    "tauri": "tauri",
+    "test": "node --test scripts/*.test.mjs",
+    "build:windows": "powershell -ExecutionPolicy Bypass -File scripts/windows/build.ps1 -Release",
+    "dev:windows": "powershell -ExecutionPolicy Bypass -File scripts/windows/dev.ps1",
+    "build:macos": "bash scripts/macos/build.sh",
+    "dev:macos": "bash scripts/macos/dev.sh"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "dompurify": "^3",
+    "fast-json-patch": "^3",
+    "highlight.js": "^11.12.0",
+    "lucide-react": "^0.468",
+    "marked": "^16",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "jsdom": "^30.1.3",
+    "vite": "^7"
+  }
+}

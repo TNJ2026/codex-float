@@ -1,0 +1,29 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Codex Float",
+        "width": 450,
+        "height": 720,
+        "minWidth": 360,
+        "minHeight": 480,
+        "decorations": false,
+        "transparent": true,
+        "backgroundColor": "#00000000",
+        "noRedirectionBitmap": true,
+        "theme": "Light",
+        "windowEffects": {
+          "effects": [
+            "blur"
+          ],
+          "color": "#fafbf9dd"
+        },
+        "alwaysOnTop": true,
+        "resizable": true,
+        "center": true
+      }
+    ]
+  }
+}

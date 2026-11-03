@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.tools/
+src-tauri/target/
+src-tauri/gen/schemas/
+*.log
+*.exe
+*.dmg
+*.app/
+.DS_Store
+artifacts/
