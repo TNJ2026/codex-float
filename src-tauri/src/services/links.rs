@@ -2,6 +2,10 @@ use std::{fs::File, io::Read, path::Path};
 
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
+    if url.starts_with("codex:") {
+        super::context::thread_reference_id(&url)?;
+        return crate::platform::shell::open_url(&url);
+    }
     let parsed = tauri::Url::parse(&url).map_err(|_| "链接地址无效")?;
     if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
         return Err("仅支持 HTTP/HTTPS 网页链接".into());

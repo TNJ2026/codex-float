@@ -10,7 +10,7 @@ function Field({field,value,onChange,disabled}){
  if(field.options)return <select {...common} value={value??''} onChange={e=>onChange(e.target.value)}><option value="">请选择</option>{field.options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select>;
  return <input {...common} type={field.type==='number'||field.type==='integer'?'number':field.format==='email'?'email':field.format==='uri'?'url':field.format==='date'?'date':field.format==='date-time'?'datetime-local':'text'} min={field.minimum} max={field.maximum} step={field.type==='integer'?1:'any'} minLength={field.minLength} maxLength={field.maxLength} value={value??''} onChange={e=>onChange(e.target.value)}/>;
 }
-const InteractionCard=memo(function InteractionCard({request,active,disabled,onReply}){
+export const InteractionCard=memo(function InteractionCard({request,active,disabled,onReply}){
  const card=useMemo(()=>describeInteraction(request),[request]);
  const [values,setValues]=useState(()=>initialValues(card)),[state,setState]=useState('idle'),[summary,setSummary]=useState(''),[error,setError]=useState('');
  const [replyAnswers,setReplyAnswers]=useState([]);
@@ -57,7 +57,7 @@ const InteractionCard=memo(function InteractionCard({request,active,disabled,onR
  </div>;
 });
 
-export function InteractionMessages({requests,messages,MessageComponent,threadId,disabled,onReply}){
+export function InteractionMessages({requests,messages,MessageComponent,threadId,disabled,onReply,onEditMessage,editDisabled,onForkMessage,forkDisabled}){
  const [history,setHistory]=useState([]);
  useEffect(()=>{
   setHistory(current=>{
@@ -75,7 +75,7 @@ export function InteractionMessages({requests,messages,MessageComponent,threadId
  };
  const ids=new Set(messages.map(message=>message.id));
  return <>
-  {messages.map(message=><React.Fragment key={message.id}><MessageComponent {...message}/>{entries.filter(entry=>entry.afterMessageId===message.id).map(renderCard)}</React.Fragment>)}
+  {messages.map(message=><React.Fragment key={message.id}><MessageComponent {...message} onEdit={onEditMessage} editDisabled={editDisabled} onFork={onForkMessage} forkDisabled={forkDisabled}/>{entries.filter(entry=>entry.afterMessageId===message.id).map(renderCard)}</React.Fragment>)}
   {entries.filter(entry=>!ids.has(entry.afterMessageId)).map(renderCard)}
  </>;
 }

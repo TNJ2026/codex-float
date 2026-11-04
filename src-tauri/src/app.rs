@@ -4,6 +4,11 @@ pub fn run() {
     let app = tauri::Builder::default()
         .manage(codex::Bridge::default())
         .manage(services::mini_mode::MiniModeState::default())
+        .manage(services::model_settings::ModelSettingsState::default())
+        .manage(services::mcp_apps::McpAppsState::default())
+        .manage(services::mcp_tool_calls::McpToolState::default())
+        .manage(services::forks::ForkState::default())
+        .manage(services::predictions::PredictionState::default())
         .setup(platform::initialize)
         .on_window_event(platform::on_window_event)
         .invoke_handler(tauri::generate_handler![
@@ -12,6 +17,34 @@ pub fn run() {
             codex::commands::reply_interaction,
             codex::index::list_threads,
             services::usage::read_usage,
+            services::attachments::pick_attachments,
+            services::attachments::inspect_attachments,
+            services::attachments::save_attachment,
+            services::attachments::clipboard_attachment_paths,
+            services::context::pick_context_paths,
+            services::context::search_context_files,
+            services::context::search_context_threads,
+            services::context::read_ide_context,
+            services::context::read_browser_contexts,
+            services::catalog::context_catalog,
+            services::model_settings::read_model_options,
+            services::model_settings::update_model_settings,
+            services::permissions::update_permission_settings,
+            services::chat_commands::run_chat_command,
+            services::message_actions::copy_text,
+            services::message_actions::edit_sent_message,
+            services::speed_settings::update_speed_settings,
+            services::mcp_apps::load_mcp_app,
+            services::mcp_apps::release_mcp_app,
+            services::mcp_apps::read_mcp_app_resource,
+            services::mcp_tool_calls::mcp_app_tool,
+            services::mcp_tool_calls::reply_mcp_app_request,
+            services::mcp_apps::load_rich_preview,
+            services::forks::fork_message,
+            services::forks::restore_fork_settings,
+            services::predictions::predict_message,
+            services::predictions::cancel_prediction,
+            services::subagent_actions::subagent_action,
             platform::background::background_settings,
             platform::background::set_background_blur,
             services::mini_mode::set_mini_mode,
@@ -25,6 +58,7 @@ pub fn run() {
     app.run(|handle, event| {
         if matches!(event, tauri::RunEvent::Exit) {
             codex::shutdown(handle);
+            services::mcp_apps::shutdown(handle);
         }
     });
 }

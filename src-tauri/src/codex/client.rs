@@ -12,6 +12,7 @@ pub(crate) struct Client {
     pending: Mutex<HashMap<String, mpsc::Sender<Value>>>,
     id: Mutex<String>,
     pub(crate) binding: Mutex<Option<(String, String)>>,
+    snapshots: Mutex<HashMap<String, mpsc::Sender<Value>>>,
     alive: std::sync::atomic::AtomicBool,
 }
 impl Client {
@@ -23,6 +24,7 @@ impl Client {
             pending: Mutex::new(HashMap::new()),
             id: Mutex::new("initializing-client".into()),
             binding: Mutex::new(None),
+            snapshots: Mutex::new(HashMap::new()),
             alive: std::sync::atomic::AtomicBool::new(true),
         });
         let c = client.clone();
@@ -79,6 +81,14 @@ impl Client {
                         let _ = c.write(json!({"type":"client-discovery-response","requestId":msg["requestId"],"response":{"canHandle":false}}));
                     }
                     Some("broadcast") if msg["method"] == "thread-stream-state-changed" => {
+                        if msg["params"]["change"]["type"] == "snapshot" {
+                            if let Some(id) = msg["params"]["conversationId"].as_str() {
+                                if let Some(tx) = c.snapshots.lock().unwrap().get(id) {
+                                    let _ = tx
+                                        .send(msg["params"]["change"]["conversationState"].clone());
+                                }
+                            }
+                        }
                         let selected = c.binding.lock().unwrap().as_ref().map(|b| b.0.clone());
                         if selected.as_deref() == msg["params"]["conversationId"].as_str() {
                             let _ = app.emit("codex-stream", &msg["params"]);
@@ -154,6 +164,30 @@ impl Client {
         if let Some((thread, owner)) = binding {
             let _ = self.follow(&thread, &owner, false);
         }
+    }
+    pub(crate) fn inspect_child(&self, thread: &str, owner: &str) -> Result<Value, String> {
+        let (tx, rx) = mpsc::channel();
+        {
+            let mut slots = self.snapshots.lock().map_err(|_| "子代理连接不可用")?;
+            if slots.contains_key(thread) {
+                return Err("该子代理正在刷新，请稍后重试".into());
+            }
+            slots.insert(thread.into(), tx);
+        }
+        let result = (|| {
+            self.follow(thread, owner, true)?;
+            self.rpc(
+                "thread-follower-load-complete-history",
+                json!({"conversationId":thread}),
+                1,
+                Some(owner),
+            )?;
+            rx.recv_timeout(Duration::from_secs(5))
+                .map_err(|_| "尚未收到子代理状态，请刷新重试".into())
+        })();
+        let _ = self.follow(thread, owner, false);
+        self.snapshots.lock().unwrap().remove(thread);
+        result
     }
 }
 #[derive(Default)]

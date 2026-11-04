@@ -1,0 +1,149 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import React,{act} from 'react';
+import {JSDOM} from 'jsdom';
+import {createServer} from 'vite';
+
+test('composer keyboard completion sends structured context without a prompt and restores it on failure',async()=>{
+ const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost',pretendToBeVisual:true});
+ const globals=['window','document','localStorage','requestAnimationFrame','IS_REACT_ACT_ENVIRONMENT'],previous=globals.map(key=>globalThis[key]);
+ Object.assign(globalThis,{window:dom.window,document:dom.window.document,localStorage:dom.window.localStorage,requestAnimationFrame:callback=>setTimeout(callback,0),IS_REACT_ACT_ENVIRONMENT:true});
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
+ const callbacks=new Map(),events=new Map(),calls=[];
+ let finishModelSave;
+ let finishSpeedSave;
+ let rejectCommand=false;let timeoutSend=false;
+ const file={kind:'file',label:'main.js',path:'C:/project/main.js'};
+ const state={id:'context-test',cwd:'C:/project',turns:[],requests:[],latestModel:'gpt-test'};
+ window.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener(){}};
+ window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},convertFileSrc:path=>`asset://localhost/${encodeURIComponent(path)}`,transformCallback(callback){const id=callbacks.size+1;callbacks.set(id,callback);return id;},invoke:async(cmd,args)=>{
+  calls.push({cmd,args});
+  if(cmd==='plugin:event|listen'){events.set(args.event,callbacks.get(args.handler));return events.size;}
+  if(cmd==='plugin:event|unlisten'||cmd==='plugin:window|set_theme')return;
+  if(cmd==='list_threads')return {threads:[{id:state.id,thread_name:'Test'}],currentThread:state.id};
+  if(cmd==='connect_thread'){events.get('codex-stream')?.({payload:{conversationId:state.id,change:{type:'snapshot',revision:1,conversationState:state}}});return {connected:true};}
+  if(cmd==='background_settings')return {mode:'custom-blur',amount:30};
+  if(cmd==='set_background_blur')return args.amount;
+  if(cmd==='read_usage')return {};
+  if(cmd==='search_context_files')return [file];
+  if(cmd==='search_context_threads')return [{kind:'thread',label:'other conversation',path:'codex://threads/00000000-0000-4000-8000-000000000001',source:'Project'}];
+  if(cmd==='context_catalog')return {skills:[{kind:'skill',label:'test-skill',path:'C:/skills/test/SKILL.md',description:'Create a report'}],plugins:[],warnings:[]};
+  if(cmd==='run_chat_command'){if(rejectCommand)throw 'command rejected';return {threadSettings:{collaborationMode:{mode:args.command==='plan'?'plan':'default',settings:{model:'gpt-test',reasoning_effort:'high',developer_instructions:null}}}};}
+  if(cmd==='read_model_options')return {settings:{model:'gpt-test',reasoningEffort:null},models:[{model:'gpt-test',displayName:'Test model',serviceTiers:[{id:'fast',name:'Fast'}],defaultReasoningEffort:'low',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'high'}]}]};
+  if(cmd==='update_model_settings')return new Promise(resolve=>{finishModelSave=resolve;});
+  if(cmd==='update_speed_settings')return new Promise(resolve=>{finishSpeedSave=resolve;});
+  if(cmd==='load_mcp_app')return {token:'abc',url:'http://127.0.0.1:1234/mcp-app/abc/index.html'};
+  if(cmd==='release_mcp_app')return;
+  if(cmd==='send_prompt'){
+   if(timeoutSend){if(timeoutSend==='echo')setTimeout(()=>events.get('codex-stream')?.({payload:{conversationId:state.id,change:{type:'snapshot',revision:10,conversationState:{...state,turns:[{id:'timeout-turn',status:'inProgress',items:[{id:'timeout-echo',type:'userMessage',clientUserMessageId:args.clientMessageId,content:[{type:'text',text:args.text}]}]}]}}}}),250);throw 'thread-follower-start-turn-timeout';}
+   throw 'mock send failure';
+  }
+  if(cmd==='predict_message')return {text:'请修复刚才发现的问题'};
+  if(cmd==='cancel_prediction')return;
+  if(cmd==='copy_text')return;
+  throw Error(`Unexpected command: ${cmd}`);
+ }};
+ const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},plugins:[{name:'expose-test-root',enforce:'pre',transform(code,id){if(id.replaceAll('\\','/').endsWith('/src/main.jsx'))return code.replace("createRoot(document.getElementById('root')).render(<App/>);","export const testRoot=createRoot(document.getElementById('root'));testRoot.render(<App/>);");}}],server:{middlewareMode:true,hmr:false,ws:false,watch:null},appType:'custom'});
+ let module;
+ try{
+  await act(async()=>{module=await vite.ssrLoadModule('/src/main.jsx');await new Promise(resolve=>setTimeout(resolve,180));});
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,180));});
+  const input=()=>document.querySelector('#prompt-input');
+  const type=async text=>act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,'value').set.call(input(),text);input().setSelectionRange(text.length,text.length);input().dispatchEvent(new dom.window.Event('input',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,220));});
+  const key=async key=>act(async()=>{input().dispatchEvent(new dom.window.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));await new Promise(resolve=>setTimeout(resolve,140));});
+  await type('@main');await act(async()=>{await new Promise(resolve=>setTimeout(resolve,220));});
+  assert.ok(document.querySelector('#context-option-0'));
+  await key('ArrowDown');await key('Enter');
+  assert.equal(input().value,'');
+  assert.match(document.querySelector('.context-chip').textContent,/main.js/);
+  assert.equal(calls.filter(call=>call.cmd==='send_prompt').length,0,'selecting a context must not send a message');
+  assert.equal(document.querySelector('[aria-label="发送提示词"]').disabled,false,'a context alone enables sending');
+  await key('Enter');
+  const sent=calls.find(call=>call.cmd==='send_prompt');
+  assert.equal(sent.args.text,'');assert.equal(sent.args.contextItems[0].path,file.path);assert.deepEqual(sent.args.attachmentPaths,[]);
+  assert.match(document.querySelector('.context-chip').textContent,/main.js/,'failed sends restore context');
+  assert.match(document.querySelector('[role="alert"]').textContent,/mock send failure/);
+  await act(async()=>document.querySelector('[aria-label="移除上下文 main.js"]').click());
+  await type('@other');await act(async()=>{await new Promise(resolve=>setTimeout(resolve,220));});
+  await key('Enter');
+  assert.match(document.querySelector('.context-chip').textContent,/other conversation/);
+  await act(async()=>document.querySelector('[aria-label="选择模型与推理强度"]').click());
+  await act(async()=>{const slider=document.querySelector('[aria-label="推理强度"][type="range"]');Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(slider,'1');slider.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});
+  assert.equal(document.querySelector('[aria-label="发送提示词"]').disabled,true,'sending waits until the model selection is saved');
+  const beforeSave=calls.filter(call=>call.cmd==='send_prompt').length;
+  await type('next turn');await key('Enter');
+  assert.equal(calls.filter(call=>call.cmd==='send_prompt').length,beforeSave);assert.equal(input().value,'next turn');
+  await act(async()=>finishModelSave({settings:{model:'gpt-test',reasoningEffort:'high'}}));
+  assert.equal(document.querySelector('[aria-label="发送提示词"]').disabled,false);
+  await key('Enter');assert.equal(calls.filter(call=>call.cmd==='send_prompt').length,beforeSave+1);
+  assert.equal(calls.filter(call=>call.cmd==='connect_thread').length,1,'adding a conversation reference must not switch the bound conversation');
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,180));});
+  assert.equal(document.querySelector('.context-picker'),null,'stale selection events must not reopen completion after inserting a reference');
+  await key('Enter');
+  const referenceSend=calls.filter(call=>call.cmd==='send_prompt').at(-1);
+  assert.equal(referenceSend.args.contextItems[0].kind,'thread');assert.match(referenceSend.args.contextItems[0].path,/codex:\/\/threads\//);
+  assert.match(document.querySelector('.context-chip').textContent,/other conversation/);
+  await act(async()=>document.querySelector('[aria-label="移除上下文 other conversation"]').click());
+  const beforeCommand=calls.filter(call=>call.cmd==='send_prompt').length;
+  await type('/skills');await key('Enter');
+  assert.equal(input().value,'$');assert.match(document.querySelector('.context-picker-heading').textContent,/选择技能/);
+  assert.equal(document.querySelector('.context-categories'),null,'skill completion is a dedicated skill menu');
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,220));});await key('Enter');
+  assert.equal(input().value,'');assert.match(document.querySelector('.context-chip').textContent,/test-skill/);
+  assert.equal(calls.filter(call=>call.cmd==='send_prompt').length,beforeCommand,'choosing a skill never sends immediately');
+  await key('Enter');assert.equal(calls.filter(call=>call.cmd==='send_prompt').at(-1).args.contextItems[0].kind,'skill');
+  await act(async()=>document.querySelector('[aria-label="移除上下文 test-skill"]').click());
+  await type('/test-skill');await key('Enter');assert.match(document.querySelector('.context-chip').textContent,/test-skill/);
+  await act(async()=>document.querySelector('[aria-label="移除上下文 test-skill"]').click());
+  const beforeShortcuts=calls.filter(call=>call.cmd==='send_prompt').length;
+  await type('/permissions');await key('Enter');assert.ok(document.querySelector('[role="menu"][aria-label="聊天权限"]'));
+  await key('Escape');
+  await type('/model');await key('Enter');assert.ok(document.querySelector('#model-settings-popup'));
+  await key('Escape');
+  await type('/status');await key('Enter');assert.ok(document.querySelector('.chat-status'));await act(async()=>document.querySelector('[aria-label="关闭预览"]').click());
+  await type('/plan');await key('Enter');assert.equal(calls.filter(call=>call.cmd==='run_chat_command').at(-1).args.command,'plan');
+  assert.match(document.querySelector('.composer-command-status').textContent,/计划模式/);assert.equal(input().value,'');
+  assert.equal(calls.filter(call=>call.cmd==='send_prompt').length,beforeShortcuts);
+  rejectCommand=true;await type('/agent');await key('Enter');assert.match(document.querySelector('[role="alert"]').textContent,/command rejected/);assert.equal(input().value,'/agent');
+  await type('/fast');await key('Enter');assert.equal(input().value,'');assert.equal(calls.filter(call=>call.cmd==='update_speed_settings').at(-1).args.fast,true);
+  assert.equal(document.querySelector('[aria-label="发送提示词"]').disabled,true);
+  const beforeSpeed=calls.filter(call=>call.cmd==='send_prompt').length;await type('wait for speed');await key('Enter');assert.equal(calls.filter(call=>call.cmd==='send_prompt').length,beforeSpeed);
+  await act(async()=>finishSpeedSave({threadSettings:{serviceTier:'fast'}}));assert.ok(document.querySelector('.speed-picker-button').classList.contains('fast'));assert.equal(document.querySelector('[aria-label="发送提示词"]').disabled,false);
+  await type('/fast');await key('Enter');assert.equal(calls.filter(call=>call.cmd==='update_speed_settings').at(-1).args.fast,false);await act(async()=>finishSpeedSave({threadSettings:{serviceTier:'default'}}));
+  await type('existing draft');const beforeCardMessage=calls.filter(call=>call.cmd==='send_prompt').length;
+  await act(async()=>events.get('codex-stream')({payload:{conversationId:state.id,change:{type:'snapshot',revision:2,conversationState:{...state,turns:[{id:'mcp-turn',status:'completed',items:[{id:'mcp-call',type:'mcpToolCall',status:'completed',server:'example',tool:'map',mcpAppUi:{resourceUri:'ui://map'},arguments:{},result:{content:[],structuredContent:{value:1}}}]}]}}}}));
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,160));});
+  const cardFrame=document.querySelector('.mcp-app-card iframe');assert.ok(cardFrame,'MCP App cards remain in completed transcripts');
+  await act(async()=>window.dispatchEvent(new dom.window.MessageEvent('message',{source:cardFrame.contentWindow,origin:'null',data:{jsonrpc:'2.0',id:'followup',method:'ui/message',params:{role:'user',content:[{type:'text',text:'card follow-up'}]}}})));
+  assert.equal(input().value,'existing draft\n\ncard follow-up');assert.equal(calls.filter(call=>call.cmd==='send_prompt').length,beforeCardMessage,'card messages are staged and never sent automatically');
+  await type('');
+  const emitPredictionTurn=async(status,revision)=>act(async()=>{events.get('codex-stream')({payload:{conversationId:state.id,change:{type:'snapshot',revision,conversationState:{...state,turns:[{id:'prediction-turn',status,items:[{id:'predict-u',type:'userMessage',content:[{type:'text',text:'请检查'}]},{id:'predict-a',type:'agentMessage',phase:'final_answer',text:'发现一个问题'}]}]}}}});await new Promise(resolve=>setTimeout(resolve,160));});
+  await emitPredictionTurn('inProgress',3);await emitPredictionTurn('completed',4);
+  await act(async()=>new Promise(resolve=>setTimeout(resolve,1450)));
+  assert.match(document.querySelector('.composer-prediction').textContent,/请修复刚才发现的问题/);
+  const beforePredictionAccept=calls.filter(call=>call.cmd==='send_prompt').length;
+  await key('Tab');assert.equal(input().value,'请修复刚才发现的问题');assert.equal(input().selectionStart,input().value.length);
+  assert.equal(document.querySelector('.composer-prediction'),null);assert.equal(calls.filter(call=>call.cmd==='send_prompt').length,beforePredictionAccept,'accepting a prediction fills a draft without sending');
+  timeoutSend='echo';await type('延迟确认的消息');await key('Enter');await act(async()=>new Promise(resolve=>setTimeout(resolve,650)));
+  assert.equal(input().value,'');assert.equal(document.querySelector('[role="alert"]'),null,'late echo must not become a send failure');assert.ok(!document.body.textContent.includes('发送结果待确认'));
+  timeoutSend='unknown';await type('结果未知的消息');const countBeforeTimeout=calls.filter(call=>call.cmd==='send_prompt').length;await key('Enter');await act(async()=>new Promise(resolve=>setTimeout(resolve,5300)));
+  assert.equal(calls.filter(call=>call.cmd==='send_prompt').length,countBeforeTimeout+1,'timeouts never cause automatic resubmission');assert.equal(input().value,'','uncertain submissions are not restored as retryable drafts');assert.match(document.body.textContent,/发送结果待确认/);assert.equal(document.querySelector('[role="alert"]'),null);
+  const last=calls.filter(call=>call.cmd==='send_prompt').at(-1).args;
+  await act(async()=>{events.get('codex-stream')({payload:{conversationId:state.id,change:{type:'snapshot',revision:11,conversationState:{...state,turns:[{id:'late-timeout',status:'inProgress',items:[{id:'late-timeout-user',type:'userMessage',clientUserMessageId:last.clientMessageId,content:[{type:'text',text:last.text}]}]}]}}}});await new Promise(resolve=>setTimeout(resolve,180));});
+  assert.ok(!document.body.textContent.includes('发送结果待确认'),'a later stream acknowledgement clears only the delivery warning');
+  await act(async()=>{events.get('codex-stream')({payload:{conversationId:state.id,change:{type:'snapshot',revision:12,conversationState:{...state,turns:[{id:'timeline-ui',status:'inProgress',items:[{id:'note',type:'agentMessage',phase:'commentary',text:'说明在命令前'},{id:'command-one',type:'commandExecution',command:'echo one',status:'completed'},{id:'next-note',type:'agentMessage',phase:'commentary',text:'说明在两条命令之间'},{id:'command-two',type:'commandExecution',command:'echo two',status:'inProgress',aggregatedOutput:'live output'}]}]}}}});await new Promise(resolve=>setTimeout(resolve,180));});
+  assert.equal(document.querySelectorAll('.activity .tool-activity-trigger').length,0,'thinking animation has no command below it');assert.equal(document.querySelectorAll('.tool-timeline-trigger').length,1);
+  const ordered=[...document.querySelectorAll('.messages [data-message-id]')].map(el=>el.textContent);assert.ok(!ordered.some(text=>text.includes('echo one')),'previous calls are hidden while running');assert.ok(ordered.findIndex(text=>text.includes('说明在命令前'))<ordered.findIndex(text=>text.includes('说明在两条命令之间')));assert.ok(ordered.findIndex(text=>text.includes('说明在两条命令之间'))<ordered.findIndex(text=>text.includes('echo two')));
+  await act(async()=>document.querySelector('.tool-timeline-trigger').click());assert.match(document.querySelector('.tool-details-popup').textContent,/live output/);
+  const finalText='只复制这条最终可见回复';
+  await act(async()=>{events.get('codex-stream')({payload:{conversationId:state.id,change:{type:'snapshot',revision:13,conversationState:{...state,turns:[{id:'copy-ui',status:'completed',items:[{id:'copy-user',type:'userMessage',content:[{type:'text',text:'不要复制用户输入'}]},{id:'copy-note',type:'agentMessage',phase:'commentary',text:'不要复制折叠说明'},{id:'copy-tool',type:'commandExecution',command:'do not copy command',status:'completed',aggregatedOutput:'do not copy output'},{id:'copy-final',type:'agentMessage',phase:'final_answer',text:finalText}]}]}}}});await new Promise(resolve=>setTimeout(resolve,180));});
+  const copies=document.querySelectorAll('[data-copy-message]');assert.equal(copies.length,1);assert.equal(copies[0].closest('[data-message-id]').dataset.messageId,'copy-final');assert.equal(document.querySelector('.work-details [data-copy-message]'),null);assert.ok(copies[0].parentElement.classList.contains('final-reply-actions'));
+  await act(async()=>copies[0].click());assert.equal(calls.filter(call=>call.cmd==='copy_text').at(-1).args.text,finalText);
+
+
+
+ }finally{
+  if(module?.testRoot)await act(async()=>module.testRoot.unmount());
+  await vite.close();dom.window.close();globals.forEach((key,index)=>{if(previous[index]===undefined)delete globalThis[key];else globalThis[key]=previous[index];});
+ }
+});

@@ -1,0 +1,14 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<style>body{font:13px/1.6 system-ui;margin:0;padding:14px;background:#f8fafc;color:#182230}h3{margin:0 0 12px}nav{display:flex;gap:6px;flex-wrap:wrap}button{font:inherit;padding:5px 10px;border:1px solid #b9c4d0;border-radius:5px;background:white;cursor:pointer}button:hover{background:#eaf3ff}pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:10px;background:#eef3f8;border-radius:5px;min-height:90px;font:12px/1.6 monospace}</style>
+<!--SHIM--></head><body><h3 id="title">模拟工具面板</h3><nav><button data-tool="get_status">读取状态</button><button data-tool="slow">延迟响应</button><button data-tool="confirm">需要确认</button><button data-tool="authorize">网页授权</button><button data-tool="fail">模拟失败</button></nav><p id="status">ready</p><pre id="result">等待操作</pre>
+<script>
+(()=>{
+ const label=location.pathname.includes('/aa/')?'A':'B';document.getElementById('title').textContent=`卡片 ${label} · 模拟服务`;
+ let seq=0;const pending=new Map();
+ const raw=(method,params,id=`sim-${label}-${++seq}`)=>new Promise((resolve,reject)=>{pending.set(id,{resolve,reject});parent.postMessage({jsonrpc:'2.0',id,method,params},'*');});
+ addEventListener('message',event=>{if(event.source!==parent)return;const m=event.data,entry=pending.get(m?.id);if(entry){pending.delete(m.id);m.error?entry.reject(Error(m.error.message)):entry.resolve(m.result);}});
+ const display=async operation=>{document.getElementById('status').textContent='waiting';try{const result=await operation();window.lastResult=result;document.getElementById('status').textContent=result.structuredContent?.status||'success';document.getElementById('result').textContent=JSON.stringify(result,null,2);}catch(error){document.getElementById('status').textContent='failed';document.getElementById('result').textContent=String(error.message||error);}};
+ document.querySelectorAll('[data-tool]').forEach(button=>button.onclick=()=>display(()=>window.openai.callTool(button.dataset.tool,{label})));
+ window.simCard={raw,display,duplicate(){const id=`duplicate-${label}-${++seq}`,params={name:'slow',arguments:{label}};const result=raw('tools/call',params,id);parent.postMessage({jsonrpc:'2.0',id,method:'tools/call',params},'*');return result;}};
+})();
+</script></body></html>

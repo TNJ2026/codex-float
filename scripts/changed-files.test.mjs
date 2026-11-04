@@ -33,9 +33,9 @@ test('file summaries follow each completed turn and omit empty turns across cano
  const second={turnId:'two',status:'completed',items:[{id:'next',type:'agentMessage',text:'没有修改'}]};
  const state={turnHistory:{history:{entitiesByKey:{first,second},islands:[{entries:[{value:'first'},{value:'second'}]}]}}};
  const messages=messagesOf(state);
- assert.deepEqual(messages.map(m=>m.id),['answer','changed-files:one','next']);
- assert.equal(messages[1].type,'changedFiles');
- assert.equal(messages[1].cwd,'D:/project');
+ assert.deepEqual(messages.map(m=>m.id),['answer','tool-history:one','changed-files:one','next']);
+ assert.equal(messages[2].type,'changedFiles');
+ assert.equal(messages[2].cwd,'D:/project');
  assert.deepEqual(fileLabel('D:\\project\\src\\a.js','d:/project'),{name:'a.js',relative:'src/a.js'});
  assert.equal(fileLabel('D:/project-extra/a.js','D:/project').relative,'D:/project-extra/a.js');
 });

@@ -1,6 +1,12 @@
 import jsonpatch from 'fast-json-patch';
 import {imagesOf,generatedImagesOf} from './images.js';
 import {changedFilesOf} from './changed-files.js';
+import {orderedItems,taskDetailMessage} from './task-details.js';
+import {subagentItem,subagentMessage} from './subagents.js';
+import {toolDetailMessage} from './tool-details.js';
+import {mcpAppMessage} from './mcp-apps.js';
+import {attachmentsOf,referencesOf} from './rich-content.js';
+import {turnDurationMs} from './work-timing.js';
 // Match the desktop app's model label formatter, retaining the GPT prefix.
 export function modelDisplayName(model, names = {}) {
   const name = names[model] || model || '';
@@ -44,20 +50,40 @@ export function turnsOf(state) {
   }
   return state.turns || [];
 }
-export function messagesOf(state) {
-  return turnsOf(state).flatMap(t => {
-    const items = Array.isArray(t.items) ? t.items : Object.values(t.items?.entitiesByKey || {});
-    const messages=items.filter(i=>['userMessage','agentMessage','steeringUserMessage','imageGeneration'].includes(i.type)).map(i=>i.type==='imageGeneration'?{
+export function messagesOf(state,{toolTimeline=false}={}) {
+  const agentHistory=new Map();
+  return turnsOf(state).flatMap((t,turnIndex) => {
+    const items = orderedItems(t),turnKey=t.turnId||t.id||turnIndex;
+    const subagents=subagentMessage(t,items,turnKey,agentHistory);
+    const messages=items.flatMap((i,index)=>{
+     const detail=toolTimeline?toolDetailMessage(i,t,index,turnKey):null;
+     const rendered=(()=>{
+     if(subagentItem(i))return subagents&&index===subagents.anchorIndex?[subagents]:[];
+     const app=mcpAppMessage(i,t,state);if(app)return [app];
+     if(['reasoning','todo-list','plan'].includes(i.type)){const message=taskDetailMessage(i,t,items,index,turnKey);return message?[message]:[];}
+     if(!['userMessage','agentMessage','steeringUserMessage','imageGeneration'].includes(i.type))return [];
+     const message=i.type==='imageGeneration'?{
       id:i.id,role:'assistant',text:'',images:generatedImagesOf(i)
     }:({
       id:i.id, clientMessageId:i.clientUserMessageId||i.clientId, role:i.type==='agentMessage'?'assistant':'user', phase:i.phase,
+      delivery:i.delivery,aeonSentMessage:i.aeonSentMessage,hasStructuredOutput:i.structuredOutput!=null,
+      deliveryStatus:i.deliveryStatus,steeringStatus:i.steeringStatus,hookFeedback:i.hookFeedback,heartbeatTrigger:i.heartbeatTrigger,codexDelegation:i.codexDelegation,
+      turnId:t.turnId||t.id,editable:i.type==='userMessage'&&!!(t.turnId||t.id)&&items.find(item=>item.type==='userMessage')===i,
+      forkable:t.status==='completed'&&!!(t.turnId||t.id)&&(i.type==='userMessage'&&items.find(item=>item.type==='userMessage')===i||i.type==='agentMessage'&&items.filter(item=>item.type==='agentMessage').at(-1)===i),
       text:i.type==='agentMessage'?i.text:(i.content||i.input||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n'),
       images:imagesOf(i.content||i.input),
+      attachments:attachmentsOf(i),references:i.type==='agentMessage'?referencesOf(i,items):undefined,cwd:t.params?.cwd||state.cwd||state.latestThreadSettings?.cwd,
       pending:i.status==='pending'
-    })).filter(m=>(m.text?.trim()||m.images.length) && !m.text?.trim().startsWith('<external_codex_apps_open_page>'));
+    });return (message.text?.trim()||message.images.length||message.attachments?.length)&&!message.text?.trim().startsWith('<external_codex_apps_open_page>')?[message]:[];
+     })();
+     return detail?[{...detail,id:`tool-call:${turnKey}:${detail.id}`},...rendered]:rendered;
+    });
     const files=changedFilesOf(t);
+    const calls=items.map((item,index)=>toolDetailMessage(item,t,index,turnKey)).filter(Boolean);
+    if(calls.length&&!toolTimeline)messages.push({id:`tool-history:${turnKey}`,type:'toolHistory',role:'assistant',text:'',images:[],calls});
     if(files.length)messages.push({id:`changed-files:${t.turnId||t.id||items[0]?.id}`,type:'changedFiles',role:'assistant',text:'',files,cwd:t.params?.cwd||state.cwd});
-    return messages;
+    const duration=turnDurationMs(t);
+    return messages.map(message=>({...message,turnId:message.turnId||t.turnId||t.id||`turn:${turnIndex}`,turnStatus:t.status,...(duration!==null?{turnDurationMs:duration}:{})}));
   });
 }
 
@@ -67,10 +93,37 @@ const toolLabels = {
   webSearch: '正在搜索网页', imageGeneration: '正在生成图片',
   collabAgentToolCall: '正在调用子代理', subAgentActivity: '子代理正在工作'
 };
+export function latestToolDetailOf(state){
+  const turns=turnsOf(state).filter(turn=>turn.status==='inProgress');
+  for(let turnIndex=turns.length-1;turnIndex>=0;turnIndex--){
+    const turn=turns[turnIndex],items=orderedItems(turn);
+    for(let index=items.length-1;index>=0;index--){
+      if(toolLabels[items[index].type])return toolDetailMessage(items[index],turn,index,turn.turnId||turn.id||turnIndex);
+    }
+  }
+  return null;
+}
+function toolTitleOf(item) {
+  let args = item.arguments;
+  if (typeof args === 'string') {
+    try { args = JSON.parse(args); } catch { args = null; }
+  }
+  const title = [item.title, item.toolTitle, args?.title, item.command, item.tool, item.query]
+    .find(value => typeof value === 'string' && value.trim());
+  return title ? title.replace(/\s+/gu, ' ').trim() : toolLabels[item.type];
+}
 export function activityOf(state) {
   const activeTurns = turnsOf(state).filter(t => t.status === 'inProgress');
   if (!activeTurns.length && state?.threadRuntimeStatus?.type !== 'active') return null;
   if (state?.requests?.length) return { kind: 'waiting', label: '等待审批 / 回复' };
+  const turnItems = activeTurns.flatMap(t => {
+    if (Array.isArray(t.items)) return t.items;
+    const entities = t.items?.entitiesByKey || {};
+    const keys = t.items?.islands?.flatMap(island => island.entries.map(entry => entry.value));
+    return keys ? [...new Set(keys)].map(key => entities[key]).filter(Boolean) : Object.values(entities);
+  });
+  const latestTool = turnItems.filter(item => toolLabels[item.type]).at(-1);
+  const toolTitle = latestTool ? toolTitleOf(latestTool) : undefined;
   const activeItems = activeTurns.flatMap(t => {
     const completed = new Set(Array.isArray(t.completedItemIds) ? t.completedItemIds : Object.entries(t.completedItemIds || {}).filter(([,done]) => done === true).map(([id]) => id));
     const items = Array.isArray(t.items) ? t.items : Object.values(t.items?.entitiesByKey || {});
@@ -82,9 +135,8 @@ export function activityOf(state) {
   const running = activeItems.filter(i => toolLabels[i.type] && i.status === 'inProgress');
   if (running.length) {
     const latest = running.at(-1);
-    const tool = typeof latest.tool === 'string' ? latest.tool : '';
-    return { kind: 'tool', label: toolLabels[latest.type] + (tool ? ` · ${tool}` : '') + (running.length > 1 ? `（${running.length} 项）` : '') };
+    return { kind: 'tool', label: toolLabels[latest.type], toolTitle };
   }
   // A running turn without an active tool does not prove that reasoning is happening.
-  return { kind: 'thinking', label: '思考' };
+  return { kind: 'thinking', label: '思考', ...(toolTitle ? {toolTitle} : {}) };
 }

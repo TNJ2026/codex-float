@@ -44,25 +44,40 @@ pub async fn send_prompt(
     text: String,
     steer: bool,
     client_message_id: Option<String>,
+    attachment_paths: Option<Vec<String>>,
+    context_items: Option<Vec<crate::services::context::ContextItem>>,
 ) -> Result<Value, String> {
-    if text.trim().is_empty() || text.len() > 100_000 {
-        return Err("请输入 1–100000 字节的提示词".into());
+    if text.len() > 100_000 {
+        return Err("提示词不能超过 100000 字节".into());
     }
     tauri::async_runtime::spawn_blocking(move || {
         let c = get_client(&app)?;
         let binding = c.binding.lock().unwrap().clone().ok_or("请先连接聊天")?;
         if binding.0 != thread_id { return Err("聊天已切换，请重新连接".into()); }
-        let input = json!([{"type":"text","text":text,"text_elements":[]}]);
+        let context_items = context_items.unwrap_or_default();
+        let (thread_references, additional_context) = crate::services::context::thread_reference_context(&context_items, &thread_id)?;
+        let (prompt, context_inputs, context_attachments) = crate::services::context::prepare(&text, &context_items)?;
+        let (mut input, mut attachments, mut context) = crate::services::attachments::prompt_parts(&prompt, attachment_paths.unwrap_or_default())?;
+        input.as_array_mut().ok_or("上下文输入无效")?.extend(context_inputs);
+        attachments.as_array_mut().ok_or("上下文附件无效")?.extend(context_attachments.clone());
+        context["fileAttachments"].as_array_mut().ok_or("文件上下文无效")?.extend(context_attachments);
+        context["contextItems"] = json!(context_items);
+        context["threadReferences"] = json!(thread_references);
+        context["prompt"] = json!(text);
         let message_id = match client_message_id {
             Some(id) => uuid::Uuid::parse_str(&id).map_err(|_| "消息 ID 格式不正确".to_string())?.to_string(),
             None => uuid::Uuid::new_v4().to_string(),
         };
-        let restore = json!({"id":message_id,"text":text,"context":{"commentAttachments":[],"attachments":[]}});
-        let (method, version, params) = if steer {
-            ("thread-follower-steer-turn", 1, json!({"conversationId":thread_id,"input":input,"restoreMessage":restore,"attachments":[],"clientUserMessageId":message_id}))
+        let restore = json!({"id":message_id,"text":text,"context":context});
+        let (method, version, mut params) = if steer {
+            ("thread-follower-steer-turn", 1, json!({"conversationId":thread_id,"input":input,"restoreMessage":restore,"attachments":attachments,"clientUserMessageId":message_id}))
         } else {
-            ("thread-follower-start-turn", 2, json!({"conversationId":thread_id,"turnStart":{"request":{"threadId":thread_id,"input":input,"clientUserMessageId":message_id,"turnTrigger":"composer"},"context":{"commentAttachments":[],"attachments":[],"restoreMessage":restore}}}))
+            ("thread-follower-start-turn", 2, json!({"conversationId":thread_id,"turnStart":{"request":{"threadId":thread_id,"input":input,"clientUserMessageId":message_id,"turnTrigger":"composer"},"context":{"commentAttachments":[],"attachments":attachments,"restoreMessage":restore}}}))
         };
+        if !additional_context.is_null() {
+            if steer { params["additionalContext"] = additional_context; }
+            else { params["turnStart"]["request"]["additionalContext"] = additional_context; }
+        }
         let r = c.rpc(method, params, version, Some(&binding.1))?;
         Ok(r["result"].clone())
     }).await.map_err(|e| e.to_string())?

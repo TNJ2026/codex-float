@@ -28,7 +28,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http: asset:; connect-src ipc: http://ipc.localhost",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http: asset:; connect-src ipc: http://ipc.localhost; frame-src http://127.0.0.1:*; media-src 'self' data: https: http: asset:; font-src 'self' data:",
       "assetProtocol": {
         "enable": true,
         "scope": {
@@ -41,7 +41,20 @@
             "**/*.[bB][mM][pP]",
             "**/*.[sS][vV][gG]",
             "**/*.[aA][vV][iI][fF]",
-            "**/*.[iI][cC][oO]"
+            "**/*.[iI][cC][oO]",
+            "**/*.[Mm][Pp]3",
+            "**/*.[Ww][Aa][Vv]",
+            "**/*.[Mm]4[Aa]",
+            "**/*.[Aa][Aa][Cc]",
+            "**/*.[Oo][Gg][Gg]",
+            "**/*.[Oo][Gg][Aa]",
+            "**/*.[Oo][Pp][Uu][Ss]",
+            "**/*.[Ff][Ll][Aa][Cc]",
+            "**/*.[Mm][Pp]4",
+            "**/*.[Mm]4[Vv]",
+            "**/*.[Ww][Ee][Bb][Mm]",
+            "**/*.[Mm][Oo][Vv]",
+            "**/*.[Oo][Gg][Vv]"
           ],
           "requireLiteralLeadingDot": false
         }

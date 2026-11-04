@@ -42,7 +42,7 @@ test('completed desktop imageGeneration items appear in order between assistant 
  const items=[{id:'before',type:'agentMessage',text:'生成横幅'},generated,{id:'after',type:'agentMessage',text:'横幅已完成'}];
  for(const state of [{turns:[{items}]},{turnHistory:{history:{entitiesByKey:{turn:{items:{entitiesByKey:Object.fromEntries(items.map(i=>[i.id,i]))}}}}}}]){
   const messages=messagesOf(state);
-  assert.deepEqual(messages.map(m=>m.id),['before','generated','after']);
+  assert.deepEqual(messages.map(m=>m.id),['before','generated','after','tool-history:0']);
   assert.equal(messages[1].role,'assistant');
   assert.equal(messages[1].images[0].src,'data:image/png;base64,iVBORw0KGgoAAAA=');
   assert.equal(messagesOf(state)[1].images,messages[1].images);

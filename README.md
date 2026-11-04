@@ -8,9 +8,27 @@ Windows has been tested locally. macOS support is experimental and still needs b
 
 ## Features
 
+- Browser context reads accessible text from the active tab in each supported window (configurable from 1,000 to 100,000 characters in Settings, default 32,000; read counts and truncation are displayed). Added browser contexts follow tab changes about every two seconds and remain attached for subsequent messages. Pause to freeze a snapshot, or remove to stop following. Updates apply to future sends, not past messages. On macOS, body extraction requires the browser's automation JavaScript permission; otherwise only URL metadata is available.
+
+- Independent composer predictions suggest a follow-up after a new reply finishes. Tab accepts an editable draft; Esc dismisses it. Typing or changing chats cancels pending predictions. Toggle in Settings. Uses the current model and additional quota, not the official free predictions service. Only recent visible chat text is included; attachments and tool outputs are excluded. Connecting to existing history does not generate a prediction.
+
 - Live chat history and task status; send prompts, add instructions, and stop tasks.
-- Markdown, images, syntax highlighting, file previews, and per-task file changes with diffs.
+- Add file, folder, snippet, browser, IDE, skill, plugin and other-conversation context from the composer’s + button. Use @ to search context and $ to search skills; choose with arrow keys and Enter or Tab. Context chips can be removed before sending.
+- Markdown, images, syntax highlighting, file previews, and per-task file changes with diffs. Audio/video players, citation markers, source cards and attachment cards use the actual synchronized resources.
+- LaTeX math supports `$…$`, `$$…$$`, `\(…\)`, `\[…\]` and `math`/`latex` fences. `mermaid` fences render diagrams; `echarts`/`chart` fences render interactive ECharts JSON options.
+- HTML fences and complete HTML documents offer an isolated preview with expansion that preserves page state. HTTPS resources are supported; local relative resources need accessible URLs. Media playback depends on resource access and browser codec support.
 - In-chat approvals and questions, plus account usage indicators.
+- Click the model name in the composer to choose an available model and adjust supported reasoning levels with a discrete slider. Releasing the slider saves the selection automatically for subsequent turns.
+- Click the lightning button beside the model name to choose standard or fast responses, or use `/fast` to toggle. Fast tiers come from the current account's model catalog. Changes save automatically for the next turn; fast responses consume usage or credits more quickly.
+- While a task runs, only its latest tool call appears as a single truncated line. Click it to inspect arguments, output, errors, duration and exit codes in the same preview window used for diffs. Sections show their complete contents and can be collapsed; only the window body scrolls. Use Close or Escape to dismiss. Completed calls remain in the collapsed work history.
+- Standard MCP App cards render in chat with resource access, direct tool calls, theme updates, resizing and expansion. Card buttons call tools on the originating MCP server; tool visibility and connector/account scopes are enforced. Results, structured content and widget metadata return to the card. Form requests and web authorization can be handled in the card. Tool connections use temporary threads without creating a model turn or resuming the user's chat; uncertain executions are never retried automatically. Follow-up messages are staged in the composer. Main-app-only card formats still require the main app.
+- Type `/` at the start of the composer to search commands and enabled skills. Use arrows and Enter/Tab to select, or Escape to close. Commands include `/model`, `/permissions`, `/skills`, `/mention`, `/plan`, `/agent`, `/compact` and `/status`. `$` opens a dedicated skill menu; selected skills become removable context chips. Compact is available only while the chat is idle.
+- Expand supplied proposed plans and task steps directly in the transcript, with streaming updates. Each turn keeps its latest plan snapshot and completion count; interrupted or failed tasks retain the recorded step statuses.
+- Per-turn subagent cards show names, tasks, models and current states, expandable results or errors, and links to the corresponding chats in the main app. Completed spawn or wait calls do not imply that a child finished; missing terminal states remain unconfirmed.
+- Progress updates remain visible during execution. Completed turns fold ordinary commentary, task plans and subagent progress into expandable work details, keeping final answers, async delivery and subagent errors visible. Interrupted and failed turns retain their progress.
+- Copy message source text or individual code blocks with dedicated buttons. Original user messages can be edited and resent while the chat is idle, retaining attachments and regenerating subsequent content; steering messages cannot be edited separately. Reasoning summaries are hidden in the transcript, while plans and subagent cards remain visible.
+- Use `/plan` to switch to planning and `/agent` to return to execution. Changes take effect on the next turn.
+- Completed rounds offer a hover-visible fork action beside the user message and final reply. Forks include that round and earlier history, preserve the original chat and unsent composer content, and open in the main app before connecting. Connection retries reuse the created fork. Chat forks share the working directory and do not isolate workspace files.
 - Light and dark themes, adjustable background opacity, and background blur on Windows.
 - A compact floating status ball that restores the chat when clicked.
 
@@ -53,7 +71,9 @@ For development, use `npm run dev:windows` or `npm run dev:macos`. Run frontend 
 ## Limitations
 
 - Uses the desktop app's internal local IPC protocol, which may change with app updates. Only existing local chats with a running instance can connect.
-- Upload attachments, switch models, and handle sign-in or unsupported dialogs in the main Codex app. Prompts inherit the selected chat's settings.
+- Add attachments using the paperclip inside the composer, drag files in, or paste images and copied files. Each attachment can be up to 25 MB, with up to 20 per message. Clipboard content is saved in the app data directory; attachments are passed to the local chat as file paths.
+- Handle sign-in or unsupported dialogs in the main Codex app. Prompts inherit the selected chat's settings.
+- Browser context reads each window’s current page and accessible selected text on Windows (Chrome, Edge, Brave and Firefox), with a manual URL/selection entry available. IDE context requires a connected Codex IDE extension. Folders are sent as references, and only enabled skills and plugins are listed. Other conversations can be searched by title, project or ID and sent as live references for Codex to read, without switching the current conversation.
 - Numeric blur adjustment is Windows-only; macOS uses system Vibrancy.
 - Executables and build caches are excluded from Git. Build the app from source.
 

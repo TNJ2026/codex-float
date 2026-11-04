@@ -32,6 +32,9 @@ test('settings popup changes and saves appearance, applies native blur and close
    element.dispatchEvent(new dom.window.Event(element.tagName==='SELECT'?'change':'input',{bubbles:true}));
   });
   await click(gear());
+  await change('browser-body-limit','64000');
+  await act(async()=>document.getElementById('browser-body-limit').dispatchEvent(new dom.window.Event('pointerup',{bubbles:true})));
+  assert.equal(localStorage.getItem('codex-float-browser-limit'),'64000');
   assert.equal(gear().getAttribute('aria-expanded'),'true');
   const themeButton=theme=>document.querySelector(`.theme-option[aria-label="${theme==='light'?'亮色':'暗色'}主题"]`);
   assert.equal(document.activeElement,themeButton('dark'));

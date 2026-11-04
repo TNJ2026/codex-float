@@ -3,9 +3,11 @@ import {Settings as SettingsIcon,Sun,Moon} from 'lucide-react';
 import {invoke} from '@tauri-apps/api/core';
 import {getCurrentWindow} from '@tauri-apps/api/window';
 import {readTheme} from './theme';
+import {readBrowserLimit,saveBrowserLimit} from './browser-settings';
 import {readAppearance,applyTransparency} from './appearance';
 
-export const Settings=memo(function Settings(){
+export const Settings=memo(function Settings({predictionsEnabled=true,onPredictionsChange}){
+ const [browserLimit,setBrowserLimit]=useState(readBrowserLimit);
  const [open,setOpen]=useState(false),[theme,setTheme]=useState(()=>readTheme(localStorage));
  const [appearance,setAppearance]=useState(()=>readAppearance(localStorage));
  const [mode,setMode]=useState(window.__TAURI_INTERNALS__?'loading':'browser'),[blurError,setBlurError]=useState('');
@@ -67,6 +69,9 @@ export const Settings=memo(function Settings(){
    <div className="settings-range"><label htmlFor="appearance-transparency">背景透明度<output htmlFor="appearance-transparency">{appearance.transparency}%</output></label><input id="appearance-transparency" type="range" min="0" max="100" step="1" title="数值越低越透明" value={appearance.transparency} onChange={e=>setAppearance(current=>({...current,transparency:Number(e.target.value)}))}/><div className="settings-range-hint"><span>透明</span><span>不透明</span></div></div>
    {mode!=='custom-blur'&&mode!=='loading'&&<p className="settings-note">当前背景模式不支持调节模糊程度。</p>}
    {blurError&&<p className="settings-error" role="alert">{blurError}</p>}
+   <label className="settings-predictions"><span>输入预测</span><input type="checkbox" checked={predictionsEnabled} onChange={e=>onPredictionsChange?.(e.target.checked)}/></label>
+   <div className="settings-range"><label htmlFor="browser-body-limit">网页正文上限<output>{browserLimit.toLocaleString('zh-CN')} 字符</output></label><input id="browser-body-limit" type="range" min="1000" max="100000" step="1000" value={browserLimit} onChange={e=>setBrowserLimit(Number(e.target.value))} onPointerUp={e=>saveBrowserLimit(e.currentTarget.value)} onKeyUp={e=>saveBrowserLimit(e.currentTarget.value)} onBlur={e=>saveBrowserLimit(e.currentTarget.value)}/><p className="settings-note">1,000–100,000 字符。自动跟随的网页会重新读取；暂停的快照保持原内容。</p></div>
+   <p className="settings-note">独立预测使用当前模型，额外消耗模型额度。建议仅填入草稿，不自动发送。</p>
   </div>}
  </div>;
 });

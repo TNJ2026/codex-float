@@ -19,3 +19,9 @@ test('reject executable schemes and network shares without invoking the OS',()=>
  assert.throws(()=>linkTarget('relative.txt'));
  assert.deepEqual(linkTarget('#heading'),{kind:'anchor',id:'heading'});
 });
+
+test('conversation links only open the exact supported local conversation route',()=>{
+ const url='codex://threads/00000000-0000-4000-8000-000000000001';
+ assert.deepEqual(linkTarget(url),{kind:'url',url});
+ for(const invalid of ['codex://launch','codex://threads/new',url+'?prompt=send',url+'/extra',url+'#anchor'])assert.throws(()=>linkTarget(invalid));
+});

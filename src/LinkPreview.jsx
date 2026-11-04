@@ -4,6 +4,8 @@ import {invoke,convertFileSrc} from '@tauri-apps/api/core';
 import {linkTarget} from './links';
 import {imageSource} from './images';
 import {CodePreview} from './CodePreview';
+import {MediaPlayer} from './MessageResources';
+import {RichPreview} from './RichPreview';
 
 const LinkContext=createContext(()=>{});
 export const useLinkAction=()=>useContext(LinkContext);
@@ -24,7 +26,9 @@ export function LinkProvider({cwd,scope,children}){
     document.getElementById(target.id)?.scrollIntoView({block:'nearest'});
     return;
    }
-   if(target.kind==='image'){
+   if(target.kind==='media'){
+    setPreview({kind:'media',title:target.name||target.path?.split(/[\\/]/u).at(-1)||'媒体',src:target.src||target.path,mediaType:target.mediaType});
+   }else if(target.kind==='image'){
     const src=target.src||imageSource(target.path,path=>convertFileSrc(path));
     if(!src)throw Error('无法显示此图片');
     setPreview({kind:'image',title:target.path?.split(/[\\/]/u).at(-1)||'图片',src});
@@ -35,11 +39,11 @@ export function LinkProvider({cwd,scope,children}){
     if(result.kind==='folder'){
      await invoke('reveal_file',{path:target.path});
      if(token===request.current)close();
-    }else setPreview({kind:'text',title:target.path.split(/[\\/]/u).at(-1),text:result.text});
+    }else setPreview({kind:/\.html?$/iu.test(target.path)?'html':'text',title:target.path.split(/[\\/]/u).at(-1),text:result.text});
    }
   }catch(error){if(token===request.current)setPreview({title:'无法打开链接',error:String(error.message||error)});}
  }
  return <LinkContext.Provider value={open}>{children}{preview&&<PreviewDialog title={preview.title} onClose={close}>
-    {preview.loading?<p role="status">正在读取…</p>:preview.error?<p role="alert">{preview.error}</p>:preview.kind==='image'?<img src={preview.src} alt={preview.title} referrerPolicy="no-referrer" onError={()=>setPreview(current=>current?{...current,error:'图片无法加载，文件可能已移动或删除'}:null)}/>:<CodePreview text={preview.text} filename={preview.title}/>}
+    {preview.loading?<p role="status">正在读取…</p>:preview.error?<p role="alert">{preview.error}</p>:preview.kind==='image'?<img src={preview.src} alt={preview.title} referrerPolicy="no-referrer" onError={()=>setPreview(current=>current?{...current,error:'图片无法加载，文件可能已移动或删除'}:null)}/>:preview.kind==='media'?<MediaPlayer src={preview.src} kind={preview.mediaType} name={preview.title}/>:preview.kind==='html'?<RichPreview kind="html" code={preview.text}/>:<CodePreview text={preview.text} filename={preview.title}/>}
   </PreviewDialog>}</LinkContext.Provider>;
 }

@@ -30,7 +30,7 @@ export function PreviewDialog({title,onClose,children,className=''}){
    if(parent){const body=bodyOf(parent);if(body)body.scrollTop=parent.scrollTop;}
   };
  },[]);
- return createPortal(<dialog className={'file-preview '+className} ref={dialog} aria-label={title} onCancel={e=>{e.preventDefault();onClose();}}>
+ return createPortal(<dialog role="dialog" className={'file-preview '+className} ref={dialog} aria-label={title} onCancel={e=>{e.preventDefault();onClose();}}>
   <header><strong title={title}>{title}</strong><button type="button" onClick={onClose} aria-label={hasParent?'返回上一层':'关闭预览'}>{hasParent?'返回':'关闭'}</button></header>
   <div className="file-preview-body">{children}</div>
  </dialog>,document.body);

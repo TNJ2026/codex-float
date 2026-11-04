@@ -1,8 +1,7 @@
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-#[tauri::command]
-pub fn list_threads() -> Result<Value, String> {
+pub(crate) fn indexed_threads(limit: usize) -> Result<Vec<Value>, String> {
     let home = super::paths::codex_home()?;
     let content = std::fs::read_to_string(home.join("session_index.jsonl")).unwrap_or_default();
     let mut found = HashMap::new();
@@ -15,36 +14,19 @@ pub fn list_threads() -> Result<Value, String> {
     }
     let mut threads: Vec<Value> = found.into_values().collect();
     threads.sort_by(|a, b| b["updated_at"].as_str().cmp(&a["updated_at"].as_str()));
-    threads.truncate(60);
+    threads.truncate(limit);
     let desktop: Value = std::fs::read_to_string(home.join(".codex-global-state.json"))
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or(Value::Null);
-    for thread in &mut threads {
-        let id = thread["id"].as_str().unwrap_or_default().to_string();
-        let projectless = desktop["projectless-thread-ids"]
-            .as_array()
-            .is_some_and(|ids| ids.iter().any(|v| v.as_str() == Some(&id)));
-        if projectless {
-            continue;
-        }
-        let assignment = &desktop["thread-project-assignments"][&id];
-        if assignment["projectKind"] != "local" {
-            continue;
-        }
-        if let Some(project_id) = assignment["projectId"].as_str() {
-            let project = &desktop["local-projects"][project_id];
-            if let Some(name) = project["name"].as_str() {
-                let order = desktop["project-order"]
-                    .as_array()
-                    .and_then(|ids| ids.iter().position(|v| v.as_str() == Some(project_id)))
-                    .unwrap_or(usize::MAX);
-                thread["project_id"] = json!(project_id);
-                thread["project_name"] = json!(name);
-                thread["project_order"] = json!(order);
-            }
-        }
-    }
+    super::projects::enrich_threads(&mut threads, &desktop, &home);
+    Ok(threads)
+}
+
+#[tauri::command]
+pub fn list_threads() -> Result<Value, String> {
+    let home = super::paths::codex_home()?;
+    let threads = indexed_threads(60)?;
     let model_cache: Value = std::fs::read_to_string(home.join("models_cache.json"))
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())

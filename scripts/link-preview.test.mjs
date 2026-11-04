@@ -25,7 +25,7 @@ test('message links dispatch once, show image/text previews and preserve text as
   const {LinkProvider}=await vite.ssrLoadModule('/src/LinkPreview.jsx');
   root=createRoot(document.getElementById('root'));
   await act(async()=>root.render(React.createElement(LinkProvider,{cwd:'D:/project',scope:'thread'},React.createElement(Markdown,{text:'[网页](https://example.com/a.png) [图片](D:/a.png) [文本](README.md) [代码](src/app.ts) [其他文件](D:/report.pdf) [慢文件](slow.txt) [危险](javascript:alert)'}))));
-  const click=async(label)=>act(async()=>[...document.querySelectorAll('a,button')].find(el=>el.textContent===label).click());
+  const click=async(label)=>act(async()=>[...document.querySelectorAll('a,button')].find(el=>el.textContent===label||el.querySelector('strong')?.textContent===label).click());
   await click('网页');
   assert.deepEqual(calls[0],{cmd:'open_url',args:{url:'https://example.com/a.png'}});
   assert.equal(document.querySelector('dialog'),null);
