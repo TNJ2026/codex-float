@@ -13,6 +13,11 @@ compile_error!("Codex Float currently targets Windows and macOS.");
 use tauri::Manager;
 pub fn initialize(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(window) = app.get_webview_window("main") {
+        #[cfg(target_os = "macos")]
+        {
+            self::window::initialize(&window).map_err(std::io::Error::other)?;
+            self::window::install_menu(app)?;
+        }
         app.manage(background::initialize(&window));
     }
     Ok(())

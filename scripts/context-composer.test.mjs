@@ -8,10 +8,14 @@ test('composer keyboard completion sends structured context without a prompt and
  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost',pretendToBeVisual:true});
  const globals=['window','document','localStorage','requestAnimationFrame','IS_REACT_ACT_ENVIRONMENT'],previous=globals.map(key=>globalThis[key]);
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,localStorage:dom.window.localStorage,requestAnimationFrame:callback=>setTimeout(callback,0),IS_REACT_ACT_ENVIRONMENT:true});
+ // This scenario exercises prediction acceptance; users now opt in explicitly.
+ localStorage.setItem('codex-float-predictions','true');
  dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
  const callbacks=new Map(),events=new Map(),calls=[];
+ let nativeItems=[],nativeChoice='高';
  let finishModelSave;
  let finishSpeedSave;
+ let acceptSend=false;
  let rejectCommand=false;let timeoutSend=false;
  const file={kind:'file',label:'main.js',path:'C:/project/main.js'};
  const state={id:'context-test',cwd:'C:/project',turns:[],requests:[],latestModel:'gpt-test'};
@@ -22,9 +26,15 @@ test('composer keyboard completion sends structured context without a prompt and
   if(cmd==='plugin:event|unlisten'||cmd==='plugin:window|set_theme')return;
   if(cmd==='list_threads')return {threads:[{id:state.id,thread_name:'Test'}],currentThread:state.id};
   if(cmd==='connect_thread'){events.get('codex-stream')?.({payload:{conversationId:state.id,change:{type:'snapshot',revision:1,conversationState:state}}});return {connected:true};}
-  if(cmd==='background_settings')return {mode:'custom-blur',amount:30};
+  if(cmd==='background_settings')return {mode:'custom-blur',amount:30,nativeWindowControls:true};
   if(cmd==='set_background_blur')return args.amount;
   if(cmd==='read_usage')return {};
+  if(cmd==='plugin:menu|new'){nativeItems=args.options.items;return [1,'native-test'];}
+  if(cmd==='plugin:resources|close')return;
+  if(cmd==='plugin:menu|popup'){
+   const visit=items=>items.flatMap(item=>[item,...(item.items?visit(item.items):[])]);
+   const item=visit(nativeItems).find(item=>item.text===nativeChoice);item?.handler?.onmessage(item.id);return;
+  }
   if(cmd==='search_context_files')return [file];
   if(cmd==='search_context_threads')return [{kind:'thread',label:'other conversation',path:'codex://threads/00000000-0000-4000-8000-000000000001',source:'Project'}];
   if(cmd==='context_catalog')return {skills:[{kind:'skill',label:'test-skill',path:'C:/skills/test/SKILL.md',description:'Create a report'}],plugins:[],warnings:[]};
@@ -34,7 +44,10 @@ test('composer keyboard completion sends structured context without a prompt and
   if(cmd==='update_speed_settings')return new Promise(resolve=>{finishSpeedSave=resolve;});
   if(cmd==='load_mcp_app')return {token:'abc',url:'http://127.0.0.1:1234/mcp-app/abc/index.html'};
   if(cmd==='release_mcp_app')return;
+  if(cmd==='pick_attachments')return [{path:'/tmp/codex-float-fixture.txt',name:'codex-float-fixture.txt',size:12,image:false}];
+  if(cmd==='stop_task'||cmd==='reply_interaction')return {};
   if(cmd==='send_prompt'){
+   if(acceptSend)return {};
    if(timeoutSend){if(timeoutSend==='echo')setTimeout(()=>events.get('codex-stream')?.({payload:{conversationId:state.id,change:{type:'snapshot',revision:10,conversationState:{...state,turns:[{id:'timeout-turn',status:'inProgress',items:[{id:'timeout-echo',type:'userMessage',clientUserMessageId:args.clientMessageId,content:[{type:'text',text:args.text}]}]}]}}}}),250);throw 'thread-follower-start-turn-timeout';}
    throw 'mock send failure';
   }
@@ -48,6 +61,13 @@ test('composer keyboard completion sends structured context without a prompt and
  try{
   await act(async()=>{module=await vite.ssrLoadModule('/src/main.jsx');await new Promise(resolve=>setTimeout(resolve,180));});
   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,180));});
+  assert.equal(document.querySelector('[aria-label="关闭面板"]'),null,'native window controls replace the HTML close button');
+  assert.equal(document.querySelector('[aria-label="最小化为状态球"]'),null);
+  assert.equal(document.querySelector('.titlebar'),null,'AppKit owns the entire Mac toolbar');
+  await act(async()=>events.get('native-titlebar-action')({payload:'settings'}));
+  assert.ok(document.querySelector('.settings-panel'),'the native Settings action opens the existing panel');
+  await act(async()=>document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+  assert.equal(document.querySelector('.settings-panel'),null);
   const input=()=>document.querySelector('#prompt-input');
   const type=async text=>act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,'value').set.call(input(),text);input().setSelectionRange(text.length,text.length);input().dispatchEvent(new dom.window.Event('input',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,220));});
   const key=async key=>act(async()=>{input().dispatchEvent(new dom.window.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));await new Promise(resolve=>setTimeout(resolve,140));});
@@ -68,7 +88,8 @@ test('composer keyboard completion sends structured context without a prompt and
   await key('Enter');
   assert.match(document.querySelector('.context-chip').textContent,/other conversation/);
   await act(async()=>document.querySelector('[aria-label="选择模型与推理强度"]').click());
-  await act(async()=>{const slider=document.querySelector('[aria-label="推理强度"][type="range"]');Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(slider,'1');slider.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});
+  nativeChoice=null;
+  assert.ok(calls.some(call=>call.cmd==='plugin:menu|popup'),'Mac model changes use AppKit menus');
   assert.equal(document.querySelector('[aria-label="发送提示词"]').disabled,true,'sending waits until the model selection is saved');
   const beforeSave=calls.filter(call=>call.cmd==='send_prompt').length;
   await type('next turn');await key('Enter');
@@ -96,9 +117,9 @@ test('composer keyboard completion sends structured context without a prompt and
   await type('/test-skill');await key('Enter');assert.match(document.querySelector('.context-chip').textContent,/test-skill/);
   await act(async()=>document.querySelector('[aria-label="移除上下文 test-skill"]').click());
   const beforeShortcuts=calls.filter(call=>call.cmd==='send_prompt').length;
-  await type('/permissions');await key('Enter');assert.ok(document.querySelector('[role="menu"][aria-label="聊天权限"]'));
+  await type('/permissions');await key('Enter');assert.ok(nativeItems.some(item=>item.text==='完全访问'));
   await key('Escape');
-  await type('/model');await key('Enter');assert.ok(document.querySelector('#model-settings-popup'));
+  await type('/model');await key('Enter');assert.ok(nativeItems.some(item=>item.text==='推理强度'));
   await key('Escape');
   await type('/status');await key('Enter');assert.ok(document.querySelector('.chat-status'));await act(async()=>document.querySelector('[aria-label="关闭预览"]').click());
   await type('/plan');await key('Enter');assert.equal(calls.filter(call=>call.cmd==='run_chat_command').at(-1).args.command,'plan');
@@ -139,6 +160,35 @@ test('composer keyboard completion sends structured context without a prompt and
   await act(async()=>{events.get('codex-stream')({payload:{conversationId:state.id,change:{type:'snapshot',revision:13,conversationState:{...state,turns:[{id:'copy-ui',status:'completed',items:[{id:'copy-user',type:'userMessage',content:[{type:'text',text:'不要复制用户输入'}]},{id:'copy-note',type:'agentMessage',phase:'commentary',text:'不要复制折叠说明'},{id:'copy-tool',type:'commandExecution',command:'do not copy command',status:'completed',aggregatedOutput:'do not copy output'},{id:'copy-final',type:'agentMessage',phase:'final_answer',text:finalText}]}]}}}});await new Promise(resolve=>setTimeout(resolve,180));});
   const copies=document.querySelectorAll('[data-copy-message]');assert.equal(copies.length,1);assert.equal(copies[0].closest('[data-message-id]').dataset.messageId,'copy-final');assert.equal(document.querySelector('.work-details [data-copy-message]'),null);assert.ok(copies[0].parentElement.classList.contains('final-reply-actions'));
   await act(async()=>copies[0].click());assert.equal(calls.filter(call=>call.cmd==='copy_text').at(-1).args.text,finalText);
+  const snapshot=(revision,turns,requests=[])=>act(async()=>{
+   events.get('codex-stream')({payload:{conversationId:state.id,change:{type:'snapshot',revision,conversationState:{...state,turns,requests}}}});
+   await new Promise(resolve=>setTimeout(resolve,150));
+  });
+  acceptSend=true;
+  await act(async()=>document.querySelector('[aria-label="添加附件"]').click());
+  await type('带附件的验收消息');await key('Enter');
+  const submission=calls.filter(call=>call.cmd==='send_prompt').at(-1).args;
+  assert.equal(submission.steer,false);
+  assert.deepEqual(submission.attachmentPaths,['/tmp/codex-float-fixture.txt']);
+  assert.equal(input().value,'');
+  const running={id:'acceptance-turn',status:'inProgress',items:[{id:'acceptance-echo',type:'userMessage',clientUserMessageId:submission.clientMessageId,content:[{type:'text',text:submission.text}]}]};
+  await snapshot(14,[running]);
+  await type('追加验收消息');await key('Enter');
+  assert.equal(calls.filter(call=>call.cmd==='send_prompt').at(-1).args.steer,true);
+  const approval={id:42,method:'item/commandExecution/requestApproval',params:{command:'echo mock',availableDecisions:['accept','decline']}};
+  await snapshot(15,[running],[approval]);
+  const deny=[...document.querySelectorAll('.interaction-card button')].find(button=>button.textContent==='拒绝');
+  assert.ok(deny);
+  await act(async()=>deny.click());
+  assert.deepEqual(calls.filter(call=>call.cmd==='reply_interaction').at(-1).args,{threadId:state.id,requestId:42,requestMethod:approval.method,payload:{decision:'decline'}});
+  await snapshot(16,[running]);
+  await act(async()=>document.querySelector('[aria-label="停止任务"]').click());
+  assert.deepEqual(calls.filter(call=>call.cmd==='stop_task').at(-1).args,{threadId:state.id,turnId:'acceptance-turn'});
+  await snapshot(17,[{...running,status:'interrupted'}]);
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,120));});
+  assert.equal(document.querySelector('[aria-label="停止任务"]'),null);
+  assert.equal(document.querySelector('[role="alert"]'),null);
+
 
 
 

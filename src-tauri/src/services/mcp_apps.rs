@@ -341,6 +341,11 @@ fn asset(path: &str) -> Option<&'static [u8]> {
     }
 }
 fn serve(mut stream: TcpStream, address: SocketAddr, pages: &Mutex<HashMap<String, Page>>) {
+    // Darwin can inherit the listener's nonblocking mode on accepted sockets.
+    // Serve each response on its worker with bounded blocking reads and writes.
+    if stream.set_nonblocking(false).is_err() {
+        return;
+    }
     let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
     let mut request = String::new();
@@ -737,27 +742,30 @@ mod tests {
                 scope: None,
             },
         );
-        let fetch = |host: String| {
+        let fetch = |host: String, path: &str| {
             let mut stream = TcpStream::connect(address).unwrap();
             stream
                 .set_read_timeout(Some(Duration::from_secs(3)))
                 .unwrap();
             write!(
                 stream,
-                "GET /mcp-app/test-token/index.html HTTP/1.1\r\nHost: {host}\r\n\r\n"
+                "GET {path} HTTP/1.1\r\nHost: {host}\r\n\r\n"
             )
             .unwrap();
             let mut reply = String::new();
             stream.read_to_string(&mut reply).unwrap();
             reply
         };
-        let reply = fetch(address.to_string());
+        let reply = fetch(address.to_string(), "/mcp-app/test-token/index.html");
         assert!(reply.starts_with("HTTP/1.1 200"));
         assert!(reply.contains("Content-Security-Policy:"));
         assert!(reply.ends_with("<p>card</p>"));
-        assert!(fetch("attacker.example".into()).starts_with("HTTP/1.1 404"));
+        assert!(fetch("attacker.example".into(), "/mcp-app/test-token/index.html").starts_with("HTTP/1.1 404"));
+        let script = fetch(address.to_string(), "/rich-assets/mermaid.js");
+        let (_, body) = script.split_once("\r\n\r\n").unwrap();
+        assert!(body.as_bytes() == asset("/rich-assets/mermaid.js").unwrap());
         state.pages.lock().unwrap().clear();
-        assert!(fetch(address.to_string()).starts_with("HTTP/1.1 404"));
+        assert!(fetch(address.to_string(), "/mcp-app/test-token/index.html").starts_with("HTTP/1.1 404"));
         state.stopped.store(true, Ordering::Relaxed);
     }
     #[test]

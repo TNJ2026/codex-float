@@ -36,6 +36,10 @@ test('predictions are once per newly completed turn, cancellable and scoped to t
   assert.equal(predictionTarget({turns:[turn('running','inProgress')]}),null);
   const bounded=predictionTarget({turns:Array.from({length:20},(_,i)=>({...turn(String(i)),items:[{id:'a'+i,type:'agentMessage',text:'a'.repeat(10000)}]}))});
   assert.ok(bounded.context.length<=12);assert.ok(bounded.context.reduce((n,m)=>n+m.text.length,0)<=16000);
+  assert.equal(readPredictions(dom.window.localStorage),false,'predictions are opt-in on first launch');
+  dom.window.localStorage.setItem('codex-float-predictions','true');assert.equal(readPredictions(dom.window.localStorage),true);
   dom.window.localStorage.setItem('codex-float-predictions','false');assert.equal(readPredictions(dom.window.localStorage),false);
+  dom.window.localStorage.setItem('codex-float-predictions','invalid');assert.equal(readPredictions(dom.window.localStorage),false);
+  assert.equal(readPredictions({getItem(){throw Error('unavailable');}}),false);
  }finally{if(root)await act(async()=>root.unmount());await vite.close();dom.window.close();keys.forEach((k,i)=>{if(previous[i]===undefined)delete globalThis[k];else globalThis[k]=previous[i];});}
 });

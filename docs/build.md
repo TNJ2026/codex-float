@@ -48,7 +48,7 @@ npm run build:macos -- --target universal-apple-darwin
 
 普通构建的 `.app` / `.dmg` 位于 `src-tauri/target/release/bundle/`；指定 `--target` 后位于对应 target 子目录下。当前 Mac 配置使用 ad-hoc 签名供开发验收；公开发布前需配置正式签名与公证。[Tauri macOS 构建说明](https://v2.tauri.app/distribute/macos-application-bundle/)
 
-Windows 机器不能代替 Mac 进行 `.app` / `.dmg` 构建与运行验收。当前仓库只准备了 Mac 平台代码和构建入口，功能状态见 [macOS 接入说明](macos.md)。
+Windows 机器不能代替 Mac 进行 `.app` / `.dmg` 构建与运行验收。已在 Apple Silicon Mac 上完成原生构建及基础运行验收，范围见 [macOS 接入说明](macos.md)。Mac 构建脚本还包含本机 Xcode beta 的过程宏动态库兼容设置。
 
 ## GitHub Actions
 

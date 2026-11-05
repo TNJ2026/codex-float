@@ -4,16 +4,16 @@ import React,{act} from 'react';
 import {JSDOM} from 'jsdom';
 import {createServer} from 'vite';
 
-test('settings popup changes and saves appearance, applies native blur and closes accessibly',async()=>{
+test('settings popup changes and saves appearance, keeps native glass and closes accessibly',async()=>{
  const dom=new JSDOM('<div id="root"></div><button id="outside">outside</button>',{url:'http://localhost'});
  const globals=['window','document','localStorage','IS_REACT_ACT_ENVIRONMENT'],previous=globals.map(key=>globalThis[key]);
  globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.localStorage=dom.window.localStorage;globalThis.IS_REACT_ACT_ENVIRONMENT=true;
  const calls=[];
- let mode='custom-blur',rejectBlur=false,dragCount=0;
+ let mode='custom-blur',dragCount=0;
  dom.window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'}},invoke:async(cmd,args)=>{
   calls.push({cmd,args});
   if(cmd==='background_settings')return {mode,amount:10};
-  if(cmd==='set_background_blur'){if(rejectBlur)throw Error('native error');return args.amount;}
+  if(cmd==='settings_backdrop')return true;
  }};
  const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false},appType:'custom'});
  let root;
@@ -32,15 +32,17 @@ test('settings popup changes and saves appearance, applies native blur and close
    element.dispatchEvent(new dom.window.Event(element.tagName==='SELECT'?'change':'input',{bubbles:true}));
   });
   await click(gear());
-  await change('browser-body-limit','64000');
-  await act(async()=>document.getElementById('browser-body-limit').dispatchEvent(new dom.window.Event('pointerup',{bubbles:true})));
-  assert.equal(localStorage.getItem('codex-float-browser-limit'),'64000');
+  assert.equal(document.querySelector('.settings-predictions input').checked,false);
   assert.equal(gear().getAttribute('aria-expanded'),'true');
   const themeButton=theme=>document.querySelector(`.theme-option[aria-label="${theme==='light'?'亮色':'暗色'}主题"]`);
   assert.equal(document.activeElement,themeButton('dark'));
   assert.equal(document.querySelectorAll('.settings-theme-toggle button').length,2);
   for(const option of document.querySelectorAll('.theme-option')){assert.equal(option.textContent,'');assert.ok(option.querySelector('svg'));}
-  assert.equal(document.getElementById('appearance-blur').disabled,false);
+  assert.equal(document.getElementById('appearance-blur'),null);
+  // WebKit can blur the focused theme button with no next focus target when
+  // clicking a button, label or slider inside the popup. It must stay open.
+  await act(async()=>themeButton('dark').dispatchEvent(new dom.window.FocusEvent('focusout',{bubbles:true,relatedTarget:null})));
+  assert.ok(document.querySelector('.settings-panel'),'internal clicks must not dismiss settings when WebKit reports no focus target');
   await click(themeButton('light'));
   assert.equal(themeButton('light').getAttribute('aria-pressed'),'true');
   assert.equal(themeButton('dark').getAttribute('aria-pressed'),'false');
@@ -56,29 +58,59 @@ test('settings popup changes and saves appearance, applies native blur and close
   assert.equal(document.documentElement.style.getPropertyValue('--background-alpha'),'0.05');
   await change('appearance-transparency','70');
   assert.equal(JSON.parse(localStorage.getItem('codex-float-appearance')).transparency,70);
-  await act(async()=>document.getElementById('appearance-blur').dispatchEvent(new dom.window.MouseEvent('mousedown',{bubbles:true})));
+  await act(async()=>document.getElementById('appearance-transparency').dispatchEvent(new dom.window.MouseEvent('mousedown',{bubbles:true})));
   assert.equal(dragCount,0);
-  await change('appearance-blur','21');
-  await act(async()=>new Promise(resolve=>setTimeout(resolve,150)));
-  assert.deepEqual(calls.filter(call=>call.cmd==='set_background_blur').map(call=>call.args.amount),[21]);
-  rejectBlur=true;
-  await change('appearance-blur','22');
-  await act(async()=>new Promise(resolve=>setTimeout(resolve,150)));
-  assert.match(document.querySelector('[role="alert"]').textContent,/未能应用/);
-  assert.equal(document.getElementById('appearance-blur').value,'21');
+  assert.equal(calls.filter(call=>call.cmd==='set_background_blur').length,0);
   await act(async()=>document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
   assert.equal(document.querySelector('.settings-panel'),null);
   assert.equal(document.activeElement,gear());
   await click(gear());
   await act(async()=>document.getElementById('outside').dispatchEvent(new dom.window.Event('pointerdown',{bubbles:true})));
   assert.equal(document.querySelector('.settings-panel'),null);
-  rejectBlur=false;mode='acrylic';
-  await render('fallback');
+  await click(gear());
+  await act(async()=>document.getElementById('outside').focus());
+  assert.ok(document.querySelector('.settings-panel'),'native focus restoration must not dismiss settings');
+  await act(async()=>document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Tab',bubbles:true})));
+  await act(async()=>document.getElementById('outside').dispatchEvent(new dom.window.FocusEvent('focusin',{bubbles:true})));
+  assert.equal(document.querySelector('.settings-panel'),null,'keyboard focus moving outside closes settings');
+  mode='vibrancy';
+  await render('vibrancy-fallback');
   await click(gear());
   assert.equal(themeButton('light').getAttribute('aria-pressed'),'true');
   assert.equal(document.getElementById('appearance-transparency').value,'70');
-  assert.equal(document.getElementById('appearance-blur').disabled,true);
-  assert.match(document.querySelector('.settings-note').textContent,/不支持/);
+  assert.equal(document.querySelector('.settings-panel').dataset.nativeGlass,undefined);
+  assert.ok(!calls.some(call=>call.cmd==='settings_backdrop'));
+  assert.equal(document.getElementById('appearance-blur'),null);
+  mode='liquid-glass';
+  const originalBounds=dom.window.HTMLElement.prototype.getBoundingClientRect;
+  dom.window.HTMLElement.prototype.getBoundingClientRect=function(){
+   return this.classList.contains('settings-panel')?{left:100,top:38,width:280,height:400}:originalBounds.call(this);
+  };
+  const chat=document.createElement('div');chat.className='chat-panel';chat.innerHTML='<section class="messages" style="clip-path:inset(0)"></section>';document.body.append(chat);
+  const blurCalls=calls.filter(call=>call.cmd==='set_background_blur').length;
+  await render('liquid-glass');
+  await click(gear());
+  assert.equal(document.documentElement.dataset.nativeBackground,'liquid-glass');
+  assert.equal(document.getElementById('appearance-blur'),null);
+  assert.match(document.querySelector('.settings-note').textContent,/原生 Liquid Glass/);
+  assert.equal(document.querySelector('.settings-panel').dataset.nativeGlass,'true');
+  assert.ok(calls.some(call=>call.cmd==='settings_backdrop'&&JSON.stringify(call.args.rect)==='[100,38,280,400]'));
+  assert.match(chat.firstElementChild.style.clipPath,/polygon/);
+  await change('appearance-transparency','35');
+  assert.equal(JSON.parse(localStorage.getItem('codex-float-appearance')).transparency,35);
+  assert.equal(calls.filter(call=>call.cmd==='set_background_blur').length,blurCalls);
+  await act(async()=>document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+  assert.equal(document.querySelector('.settings-panel'),null);
+  assert.equal(chat.firstElementChild.style.clipPath,'inset(0)');
+  assert.equal(calls.filter(call=>call.cmd==='settings_backdrop').at(-1).args.rect,null);
+  await act(async()=>root.render(React.createElement(Settings,{nativeToolbar:true,openRequest:1})));
+  assert.ok(document.querySelector('.settings-panel'),'the native action opens settings');
+  await act(async()=>root.render(React.createElement(Settings,{nativeToolbar:true,openRequest:2})));
+  assert.ok(document.querySelector('.settings-panel'),'repeated native Settings actions keep the panel open');
+  await click(document.querySelector('[aria-label="关闭设置"]'));
+  assert.equal(document.querySelector('.settings-panel'),null,'the close button dismisses native toolbar settings');
+  assert.equal(calls.filter(call=>call.cmd==='settings_backdrop').at(-1).args.rect,null);
+  dom.window.HTMLElement.prototype.getBoundingClientRect=originalBounds;
  }finally{
   if(root)await act(async()=>root.unmount());
   await vite.close();globals.forEach((key,index)=>{globalThis[key]=previous[index];});dom.window.close();

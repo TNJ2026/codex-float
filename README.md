@@ -4,13 +4,13 @@ English | [简体中文](README.zh-CN.md)
 
 A compact, always-on-top chat window for your existing local chats in the Codex desktop app. Built with Tauri, React, and Rust.
 
-Windows has been tested locally. macOS support is experimental and still needs build and runtime verification on a Mac. The interface is currently in Simplified Chinese.
+Windows has been tested locally. macOS has been verified on Apple Silicon through live and simulated checks. See the [macOS acceptance record](docs/macos.md) for coverage. The interface is currently in Simplified Chinese.
 
 ## Features
 
-- Browser context reads accessible text from the active tab in each supported window (configurable from 1,000 to 100,000 characters in Settings, default 32,000; read counts and truncation are displayed). Added browser contexts follow tab changes about every two seconds and remain attached for subsequent messages. Pause to freeze a snapshot, or remove to stop following. Updates apply to future sends, not past messages. On macOS, body extraction requires the browser's automation JavaScript permission; otherwise only URL metadata is available.
+- Browser context reads accessible text from the active tab in each supported window (default limit of 32,000 characters; read counts and truncation are displayed). Added browser contexts follow tab changes about every two seconds and remain attached for subsequent messages. Pause to freeze a snapshot, or remove to stop following. Updates apply to future sends, not past messages. On macOS, body extraction requires the browser's automation JavaScript permission; otherwise only URL metadata is available.
 
-- Independent composer predictions suggest a follow-up after a new reply finishes. Tab accepts an editable draft; Esc dismisses it. Typing or changing chats cancels pending predictions. Toggle in Settings. Uses the current model and additional quota, not the official free predictions service. Only recent visible chat text is included; attachments and tool outputs are excluded. Connecting to existing history does not generate a prediction.
+- Independent composer predictions suggest a follow-up after a new reply finishes. Tab accepts an editable draft; Esc dismisses it. Typing or changing chats cancels pending predictions. Off by default; enable in Settings. Uses the current model and additional quota, not the official free predictions service. Only recent visible chat text is included; attachments and tool outputs are excluded. Connecting to existing history does not generate a prediction.
 
 - Live chat history and task status; send prompts, add instructions, and stop tasks.
 - Add file, folder, snippet, browser, IDE, skill, plugin and other-conversation context from the composer’s + button. Use @ to search context and $ to search skills; choose with arrow keys and Enter or Tab. Context chips can be removed before sending.
@@ -29,7 +29,7 @@ Windows has been tested locally. macOS support is experimental and still needs b
 - Copy message source text or individual code blocks with dedicated buttons. Original user messages can be edited and resent while the chat is idle, retaining attachments and regenerating subsequent content; steering messages cannot be edited separately. Reasoning summaries are hidden in the transcript, while plans and subagent cards remain visible.
 - Use `/plan` to switch to planning and `/agent` to return to execution. Changes take effect on the next turn.
 - Completed rounds offer a hover-visible fork action beside the user message and final reply. Forks include that round and earlier history, preserve the original chat and unsent composer content, and open in the main app before connecting. Connection retries reuse the created fork. Chat forks share the working directory and do not isolate workspace files.
-- Light and dark themes, adjustable background opacity, and background blur on Windows.
+- Light and dark themes and adjustable background opacity.
 - A compact floating status ball that restores the chat when clicked.
 
 ## Usage
@@ -38,7 +38,7 @@ Windows has been tested locally. macOS support is experimental and still needs b
 2. Launch Codex Float and select that chat. Use the sync button to reconnect if needed.
 3. Press **Enter** to send or **Shift+Enter** for a new line. Sending during a task adds instructions to that task.
 
-Use the title bar to move or pin the window. The minimize button switches to the floating status ball.
+Use the title bar to move or pin the window. macOS uses native traffic-light window controls: yellow minimizes to the Dock, and the circle button at the top right switches to the floating status ball. On Windows, the minimize button switches to the status ball.
 
 ## Build
 
@@ -74,7 +74,7 @@ For development, use `npm run dev:windows` or `npm run dev:macos`. Run frontend 
 - Add attachments using the paperclip inside the composer, drag files in, or paste images and copied files. Each attachment can be up to 25 MB, with up to 20 per message. Clipboard content is saved in the app data directory; attachments are passed to the local chat as file paths.
 - Handle sign-in or unsupported dialogs in the main Codex app. Prompts inherit the selected chat's settings.
 - Browser context reads each window’s current page and accessible selected text on Windows (Chrome, Edge, Brave and Firefox), with a manual URL/selection entry available. IDE context requires a connected Codex IDE extension. Folders are sent as references, and only enabled skills and plugins are listed. Other conversations can be searched by title, project or ID and sent as live references for Codex to read, without switching the current conversation.
-- Numeric blur adjustment is Windows-only; macOS uses system Vibrancy.
+- macOS 26+ uses native Liquid Glass with a Vibrancy fallback on older systems. Settings shows Liquid Glass when active.
 - Executables and build caches are excluded from Git. Build the app from source.
 
 ## Documentation

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",
-    "build": "vite build",
+    "build": "node scripts/generate-toolbar-icons.mjs && vite build",
     "tauri": "tauri",
     "test": "node --test --test-concurrency=4 scripts/*.test.mjs",
     "build:windows": "powershell -ExecutionPolicy Bypass -File scripts/windows/build.ps1 -Release",

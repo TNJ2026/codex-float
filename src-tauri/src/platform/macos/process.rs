@@ -23,6 +23,23 @@ pub fn codex_binary() -> Result<PathBuf, String> {
             Err("CODEX_FLOAT_CLI_PATH 指向的文件不存在".into())
         };
     }
+    // Match the desktop host's model catalog instead of an older Homebrew CLI.
+    let mut roots = vec![PathBuf::from("/Applications")];
+    if let Some(home) = std::env::var_os("HOME") {
+        roots.push(PathBuf::from(home).join("Applications"));
+    }
+    for root in roots {
+        for relative in [
+            "ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+            "Codex.app/Contents/Resources/codex",
+            "Codex.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+        ] {
+            let executable = root.join(relative);
+            if executable.is_file() {
+                return Ok(executable);
+            }
+        }
+    }
     if let Some(path) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&path) {
             let executable = dir.join("codex");

@@ -1,17 +1,19 @@
 import React,{memo,useEffect,useRef,useState} from 'react';
-import {Settings as SettingsIcon,Sun,Moon} from 'lucide-react';
+import {Sun,Moon,X} from 'lucide-react';
 import {invoke} from '@tauri-apps/api/core';
 import {getCurrentWindow} from '@tauri-apps/api/window';
 import {readTheme} from './theme';
-import {readBrowserLimit,saveBrowserLimit} from './browser-settings';
 import {readAppearance,applyTransparency} from './appearance';
+import {useSettingsGlass} from './useSettingsGlass';
 
-export const Settings=memo(function Settings({predictionsEnabled=true,onPredictionsChange}){
- const [browserLimit,setBrowserLimit]=useState(readBrowserLimit);
+export const Settings=memo(function Settings({predictionsEnabled=false,onPredictionsChange,nativeToolbar=false,openRequest=0,available=true}){
  const [open,setOpen]=useState(false),[theme,setTheme]=useState(()=>readTheme(localStorage));
  const [appearance,setAppearance]=useState(()=>readAppearance(localStorage));
- const [mode,setMode]=useState(window.__TAURI_INTERNALS__?'loading':'browser'),[blurError,setBlurError]=useState('');
- const root=useRef(null),button=useRef(null),themeButtons=useRef(null),appliedBlur=useRef(null);
+ const [mode,setMode]=useState(window.__TAURI_INTERNALS__?'loading':'browser');
+ const root=useRef(null),button=useRef(null),themeButtons=useRef(null);
+ const panel=useRef(null),nativeGlass=useSettingsGlass(panel,open&&available,mode);
+ useEffect(()=>{if(openRequest&&available)setOpen(true);},[openRequest]);
+ useEffect(()=>{if(!available)setOpen(false);},[available]);
  useEffect(()=>{
   document.documentElement.dataset.theme=theme;
   try{localStorage.setItem('codex-float-theme',theme);}catch{}
@@ -27,50 +29,35 @@ export const Settings=memo(function Settings({predictionsEnabled=true,onPredicti
   invoke('background_settings').then(settings=>{
    if(cancelled)return;
    document.documentElement.dataset.nativeBackground=settings.mode;
-   appliedBlur.current=settings.amount;
    setMode(settings.mode);
   }).catch(()=>{if(!cancelled)setMode('unavailable');});
   return ()=>{cancelled=true;};
  },[]);
  useEffect(()=>{
-  if(mode!=='custom-blur'||appearance.blur===appliedBlur.current)return;
-  let cancelled=false;
-  const amount=appearance.blur;
-  const timer=setTimeout(()=>{
-   invoke('set_background_blur',{amount}).then(actual=>{
-    appliedBlur.current=actual;
-    if(!cancelled)setBlurError('');
-   }).catch(error=>{
-    if(cancelled)return;
-    setBlurError('模糊程度未能应用：'+String(error));
-    setAppearance(current=>({...current,blur:appliedBlur.current??10}));
-   });
-  },100);
-  return ()=>{cancelled=true;clearTimeout(timer);};
- },[mode,appearance.blur]);
- useEffect(()=>{
   if(!open)return;
   themeButtons.current?.querySelector('[aria-pressed="true"]')?.focus();
   const pointer=e=>{if(!root.current?.contains(e.target))setOpen(false);};
-  const key=e=>{if(e.key==='Escape'){e.preventDefault();setOpen(false);button.current?.focus();}};
+  let tabbing=false;
+  const key=e=>{tabbing=e.key==='Tab';if(e.key==='Escape'){e.preventDefault();setOpen(false);button.current?.focus();}};
+  // AppKit restores the previous WebKit focus after native menus and sheets.
+  // Only a user's Tab navigation should dismiss on an outside focus event.
+  const focus=e=>{if(tabbing)pointer(e);tabbing=false;};
   document.addEventListener('pointerdown',pointer);
+  document.addEventListener('focusin',focus);
   document.addEventListener('keydown',key);
-  return ()=>{document.removeEventListener('pointerdown',pointer);document.removeEventListener('keydown',key);};
+  return ()=>{document.removeEventListener('pointerdown',pointer);document.removeEventListener('focusin',focus);document.removeEventListener('keydown',key);};
  },[open]);
- return <div className="settings-control" ref={root} onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setOpen(false);}}>
-  <button ref={button} type="button" className="icon-button caption-button settings-button" title="设置" aria-label="设置" aria-haspopup="dialog" aria-expanded={open} aria-controls={open?'appearance-settings':undefined} onClick={()=>setOpen(current=>!current)}><SettingsIcon size={16} aria-hidden="true"/></button>
-  {open&&<div id="appearance-settings" className="settings-panel" role="dialog" aria-label="显示设置" onMouseDown={e=>e.stopPropagation()}>
-   <strong>显示设置</strong>
+ return <div className="settings-control" data-native-toolbar={nativeToolbar||undefined} ref={root}>
+  <button ref={button} hidden={nativeToolbar} type="button" className="icon-button caption-button settings-button" title="设置" aria-label="设置" aria-haspopup="dialog" aria-expanded={open} aria-controls={open?'appearance-settings':undefined} onClick={()=>setOpen(current=>!current)}><span className="settings-icon" aria-hidden="true"/></button>
+  {open&&available&&<div ref={panel} id="appearance-settings" className="settings-panel" data-native-glass={nativeGlass||undefined} role="dialog" aria-label="显示设置" onMouseDown={e=>e.stopPropagation()}>
+   <div className="settings-heading"><strong>显示设置</strong><button type="button" className="settings-close" title="关闭设置" aria-label="关闭设置" onClick={()=>{setOpen(false);if(!nativeToolbar)button.current?.focus();}}><X size={14} aria-hidden="true"/></button></div>
    <div className="settings-theme"><span id="appearance-theme-label">主题</span><div ref={themeButtons} className="settings-theme-toggle" role="group" aria-labelledby="appearance-theme-label">
     <button type="button" className="theme-option" title="亮色主题" aria-label="亮色主题" aria-pressed={theme==='light'} onClick={()=>setTheme('light')}><Sun size={16} aria-hidden="true"/></button>
     <button type="button" className="theme-option" title="暗色主题" aria-label="暗色主题" aria-pressed={theme==='dark'} onClick={()=>setTheme('dark')}><Moon size={16} aria-hidden="true"/></button>
    </div></div>
-   <div className="settings-range"><label htmlFor="appearance-blur">背景模糊程度<output htmlFor="appearance-blur">{appearance.blur}</output></label><input id="appearance-blur" type="range" min="0" max="60" step="1" disabled={mode!=='custom-blur'} value={appearance.blur} onChange={e=>setAppearance(current=>({...current,blur:Number(e.target.value)}))}/><div className="settings-range-hint"><span>清晰</span><span>模糊</span></div></div>
    <div className="settings-range"><label htmlFor="appearance-transparency">背景透明度<output htmlFor="appearance-transparency">{appearance.transparency}%</output></label><input id="appearance-transparency" type="range" min="0" max="100" step="1" title="数值越低越透明" value={appearance.transparency} onChange={e=>setAppearance(current=>({...current,transparency:Number(e.target.value)}))}/><div className="settings-range-hint"><span>透明</span><span>不透明</span></div></div>
-   {mode!=='custom-blur'&&mode!=='loading'&&<p className="settings-note">当前背景模式不支持调节模糊程度。</p>}
-   {blurError&&<p className="settings-error" role="alert">{blurError}</p>}
-   <label className="settings-predictions"><span>输入预测</span><input type="checkbox" checked={predictionsEnabled} onChange={e=>onPredictionsChange?.(e.target.checked)}/></label>
-   <div className="settings-range"><label htmlFor="browser-body-limit">网页正文上限<output>{browserLimit.toLocaleString('zh-CN')} 字符</output></label><input id="browser-body-limit" type="range" min="1000" max="100000" step="1000" value={browserLimit} onChange={e=>setBrowserLimit(Number(e.target.value))} onPointerUp={e=>saveBrowserLimit(e.currentTarget.value)} onKeyUp={e=>saveBrowserLimit(e.currentTarget.value)} onBlur={e=>saveBrowserLimit(e.currentTarget.value)}/><p className="settings-note">1,000–100,000 字符。自动跟随的网页会重新读取；暂停的快照保持原内容。</p></div>
+   {mode==='liquid-glass'&&<p className="settings-note">当前使用 macOS 原生 Liquid Glass（清透）。</p>}
+   <label className="settings-predictions"><span>输入预测</span><input type="checkbox" role="switch" checked={predictionsEnabled} onChange={e=>onPredictionsChange?.(e.target.checked)}/></label>
    <p className="settings-note">独立预测使用当前模型，额外消耗模型额度。建议仅填入草稿，不自动发送。</p>
   </div>}
  </div>;

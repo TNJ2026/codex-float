@@ -15,7 +15,7 @@ try{
  await vite.listen();const address=vite.httpServer.address();
  const chrome=process.env.CODEX_FLOAT_BROWSER_PATH||(process.platform==='win32'?'C:/Program Files/Google/Chrome/Application/chrome.exe':undefined);
  browser=await playwright.chromium.launch({headless:true,...chrome?{executablePath:chrome}:{}});page=await browser.newPage({viewport:{width:1000,height:1100}});page.on('pageerror',error=>errors.push(error.message));
- await page.goto(`http://127.0.0.1:${address.port}/`);
+ await page.goto(`http://127.0.0.1:${address.port}/`,{waitUntil:'networkidle'});
  const card=label=>page.locator(`[data-sim-card="${label}"]`),view=label=>card(label).frameLocator('iframe');
  await view('A').locator('[data-tool="get_status"]').waitFor({timeout:30000});await view('B').locator('[data-tool="get_status"]').waitFor();
  await page.waitForFunction(()=>!document.querySelector('.mcp-app-status'));

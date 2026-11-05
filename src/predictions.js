@@ -5,7 +5,7 @@ export function predictionKey(event,text){
  return event.key==='Tab'?'accept':event.key==='Escape'?'dismiss':null;
 }
 
-export function readPredictions(storage){try{return storage.getItem('codex-float-predictions')!=='false';}catch{return true;}}
+export function readPredictions(storage){try{return storage.getItem('codex-float-predictions')==='true';}catch{return false;}}
 export function predictionTarget(conversation){
  const turn=turnsOf(conversation).at(-1);
  if(!turn||turn.status!=='completed')return null;

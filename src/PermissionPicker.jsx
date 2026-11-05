@@ -1,10 +1,12 @@
+import {isNativeMac} from './native-menu';
+import {NativePermissionPicker} from './NativePickers';
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {invoke} from '@tauri-apps/api/core';
 import {Check,ChevronDown} from 'lucide-react';
 import {permissionOptions,permissionPreset} from './permissions';
 
-export function PermissionPicker({threadId,conversation,disabled,onApplied,onError,onSavingChange,openRequest}){
+function WebPermissionPicker({threadId,conversation,disabled,onApplied,onError,onSavingChange,openRequest}){
  const [open,setOpen]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[position,setPosition]=useState({});
  const button=useRef(),popup=useRef(),scope=useRef(threadId),lock=useRef(false),openRef=useRef(false),callbacks=useRef({});
  scope.current=threadId;openRef.current=open;callbacks.current={onApplied,onError,onSavingChange};
@@ -52,3 +54,5 @@ export function PermissionPicker({threadId,conversation,disabled,onApplied,onErr
   </div>,document.body)}
  </>;
 }
+
+export function PermissionPicker(props){return isNativeMac()?<NativePermissionPicker {...props}/>:<WebPermissionPicker {...props}/>;}

@@ -1,3 +1,5 @@
+import {isNativeMac} from './native-menu';
+import {NativeModelPicker} from './NativePickers';
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {invoke} from '@tauri-apps/api/core';
@@ -6,7 +8,7 @@ import {modelDisplayName} from './model';
 import {effortForModel,effortLabel,supportedEfforts} from './model-settings';
 import {ReasoningSlider} from './ReasoningSlider';
 
-export function ModelPicker({threadId,model,effort,names={},disabled,busy,onApplied,onError,onSavingChange,openRequest}){
+function WebModelPicker({threadId,model,effort,names={},disabled,busy,onApplied,onError,onSavingChange,openRequest}){
  const [open,setOpen]=useState(false),[models,setModels]=useState([]),[base,setBase]=useState(null),[selected,setSelected]=useState(''),[reasoning,setReasoning]=useState(''),[loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[position,setPosition]=useState({});
  const [saved,setSaved]=useState(false);
  const [adjusting,setAdjusting]=useState(false);
@@ -77,3 +79,5 @@ export function ModelPicker({threadId,model,effort,names={},disabled,busy,onAppl
   </div>,document.body)}
  </>;
 }
+
+export function ModelPicker(props){return isNativeMac()?<NativeModelPicker {...props}/>:<WebModelPicker {...props}/>;}

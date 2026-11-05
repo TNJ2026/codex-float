@@ -1,10 +1,12 @@
+import {isNativeMac} from './native-menu';
+import {NativeSpeedPicker} from './NativePickers';
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {invoke} from '@tauri-apps/api/core';
 import {Check,Zap} from 'lucide-react';
 import {effectiveTier,fastTier,isFast,speedLabel} from './speed-settings';
 
-export function SpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplied,onError,onSavingChange}){
+function WebSpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplied,onError,onSavingChange}){
  const [open,setOpen]=useState(false),[entry,setEntry]=useState(null),[loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[position,setPosition]=useState({});
  const button=useRef(),popup=useRef(),scope=useRef(threadId),generation=useRef(0),lock=useRef(false),openRef=useRef(open),props=useRef({});
  scope.current=threadId;openRef.current=open;props.current={onApplied,onError,onSavingChange,model,tier};
@@ -47,3 +49,5 @@ export function SpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplie
   {open&&createPortal(<div ref={popup} className="permission-popup speed-popup" style={position} role="menu" aria-label="响应速度"><button type="button" role="menuitemradio" aria-checked={['default','standard','auto'].includes(current)} disabled={saving||loading} onClick={()=>save(false)}><span><strong>标准速度</strong><small>常规响应速度与用量</small></span>{['default','standard','auto'].includes(current)&&<Check size={13}/>}</button><button type="button" role="menuitemradio" aria-checked={fast} disabled={saving||loading||!fastTier(entry)} onClick={()=>save(true)}><span><strong>快速模式</strong><small>{loading?'正在读取模型支持情况…':fastTier(entry)?'加快模型响应，更快消耗额度或点数':'当前模型或账号未提供快速档位'}</small></span>{fast&&<Check size={13}/>}</button><p className="permission-popup-note" role="status">{saving?'正在保存…':'选择后自动保存，下轮生效。'}</p>{error&&<p className="model-popup-error" role="alert">{error}</p>}</div>,document.body)}
  </>;
 }
+
+export function SpeedPicker(props){return isNativeMac()?<NativeSpeedPicker {...props}/>:<WebSpeedPicker {...props}/>;}

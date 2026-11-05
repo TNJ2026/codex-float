@@ -46,6 +46,7 @@ pub fn run() {
             services::predictions::cancel_prediction,
             services::subagent_actions::subagent_action,
             platform::background::background_settings,
+            services::settings_backdrop::settings_backdrop,
             platform::background::set_background_blur,
             services::mini_mode::set_mini_mode,
             services::stop::stop_task,

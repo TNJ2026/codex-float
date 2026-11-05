@@ -1,8 +1,10 @@
+import {isNativeMac} from './native-menu';
+import {NativeThreadPicker} from './NativePickers';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {MessageSquare, ChevronDown, Check, Folder} from 'lucide-react';
 import {groupThreads} from './thread-groups';
 
-export function ThreadPicker({threads, value, disabled, onChange}) {
+function WebThreadPicker({threads, value, disabled, onChange}) {
  const [open,setOpen]=useState(false),[active,setActive]=useState(0);
  const root=useRef(null),trigger=useRef(null),list=useRef(null),search=useRef({text:'',at:0});
  const groups=useMemo(()=>groupThreads(threads),[threads]);
@@ -63,3 +65,5 @@ export function ThreadPicker({threads, value, disabled, onChange}) {
   </div>}
  </div>;
 }
+
+export function ThreadPicker(props){return isNativeMac()?<NativeThreadPicker {...props}/>:<WebThreadPicker {...props}/>;}

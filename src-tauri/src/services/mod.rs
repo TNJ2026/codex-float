@@ -16,3 +16,4 @@ pub(crate) mod mcp_tool_calls;
 pub(crate) mod forks;
 pub(crate) mod predictions;
 pub(crate) mod subagent_actions;
+pub(crate) mod settings_backdrop;

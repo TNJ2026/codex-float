@@ -31,8 +31,16 @@ test('shared Tauri config contains no Windows-only material and each platform ha
  assert.equal(common.app.windows[0].noRedirectionBitmap,undefined);
  assert.equal(common.app.windows[0].windowEffects,undefined);
  assert.equal(windows.app.windows[0].noRedirectionBitmap,true);
- assert.deepEqual(macos.app.windows[0].windowEffects.effects,['underWindowBackground']);
+ // Native setup selects Liquid Glass at runtime, with Vibrancy on older OSes.
+ assert.equal(macos.app.windows[0].windowEffects,undefined);
  assert.equal(macos.bundle.macOS.minimumSystemVersion,'13.0');
+ // The locked Tauri version always enables transparent macOS windows. The old
+ // opt-in makes plain cargo test fail its dependency/config feature check.
+ assert.equal(macos.app.macOSPrivateApi,undefined);
+ assert.equal(macos.app.windows[0].decorations,true);
+ assert.equal(macos.app.windows[0].titleBarStyle,'Overlay');
+ assert.equal(macos.app.windows[0].hiddenTitle,false);
+ assert.equal(macos.app.windows[0].trafficLightPosition,undefined,'AppKit owns the toolbar layout');
  for(const config of [windows,macos]){
   assert.equal(config.app.windows.length,1);
   assert.equal(config.app.windows[0].label,'main');

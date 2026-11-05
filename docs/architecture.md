@@ -30,6 +30,8 @@ src-tauri/
       macos/
         background.rs             系统 Vibrancy 材质
         window.rs                 macOS 窗口效果与状态球圆角
+        toolbar.rs                AppKit 原生统一工具栏、SF Symbols、菜单与内容安全区域
+        drag.rs                   原生标题区域拖动事件路由，排除按钮并保留双击行为
         transport.rs              Unix socket 默认发现 / 用户验证 / 手动覆盖
         process.rs                macOS CLI 查找
         shell.rs                  默认浏览器与 Finder 文件定位
@@ -49,6 +51,8 @@ docs/                            构建说明、macOS 接入状态、架构说�
 ```
 
 前端、IPC 消息格式、请求路由和业务规则保持共享；平台目录只处理 OS API、传输端点及进程 / 文件管理器差异。Windows SDK / WinRT 依赖放在 Cargo 的 Windows target 依赖段中，macOS 不编译这些依赖。
+
+置顶和设置图标源文件为 `src/assets/pin.svg`、`src/assets/settings.svg`。`npm run build` 通过 `scripts/generate-toolbar-icons.mjs` 同步生成 AppKit 使用的矢量 `src-tauri/icons/*-template.pdf`；网页按钮直接使用同一 SVG。Mac 原生按钮固定图像大小为 16pt，并以系统强调色表示置顶状态。
 
 Tauri 的平台配置会覆盖共享配置，`windows` 数组整体替换，因此两个平台配置各自保留完整的窗口定义。修改窗口通用尺寸时要同步两个平台配置；测试会检查基本定义的一致性。[Tauri 平台配置说明](https://v2.tauri.app/reference/config/#platform-specific-configuration)
 

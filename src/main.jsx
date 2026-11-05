@@ -4,7 +4,7 @@ import {flushSync} from 'react-dom';
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
 import {getCurrentWindow} from '@tauri-apps/api/window';
-import {ArrowUp, Minus, X, Pin, RefreshCw, MessageSquare, ArrowDown, Info, Square} from 'lucide-react';
+import {ArrowUp, Minus, X, RefreshCw, MessageSquare, ArrowDown, Info, Square} from 'lucide-react';
 import {Markdown} from './Markdown';
 import {LinkProvider} from './LinkPreview';
 import {ChangedFiles} from './ChangedFiles';
@@ -62,6 +62,8 @@ const Message = memo(function Message({id,type,role,phase,text='',images,files,c
  </article>;
 });
 function App(){
+ const [nativeWindowControls,setNativeWindowControls]=useState(false);
+ const [settingsOpenRequest,setSettingsOpenRequest]=useState(0),nativeActions=useRef({});
  const [sendWarning,setSendWarning]=useState(null);
  const [predictionsEnabled,setPredictionsEnabled]=useState(()=>readPredictions(localStorage));
  function changePredictions(value){setPredictionsEnabled(value);try{localStorage.setItem('codex-float-predictions',String(value));}catch{}}
@@ -257,9 +259,12 @@ function App(){
  }
  useEffect(()=>{
   if(!native){setError('请使用 Tauri 启动此面板以连接桌面端');return;}
-  invoke('background_settings').then(settings=>{document.documentElement.dataset.nativeBackground=settings.mode;if(settings.error)setError('背景材质已回退：'+settings.error);}).catch(()=>{});
+  invoke('background_settings').then(settings=>{document.documentElement.dataset.nativeBackground=settings.mode;document.documentElement.dataset.nativeWindowControls=String(!!settings.nativeWindowControls);if(Number.isFinite(settings.titlebarHeight))document.documentElement.style.setProperty('--native-titlebar-height',`${settings.titlebarHeight}px`);setNativeWindowControls(!!settings.nativeWindowControls);if(settings.error)setError('背景材质已回退：'+settings.error);}).catch(()=>{});
   let disposed=false,off=[];
   (async()=>{
+   off.push(await listen('native-titlebar-action',({payload})=>nativeActions.current[payload]?.()));
+   off.push(await listen('native-titlebar-pin',({payload})=>setPinned(!!payload)));
+   off.push(await listen('native-titlebar-layout',({payload})=>{if(Number.isFinite(payload))document.documentElement.style.setProperty('--native-titlebar-height',`${payload}px`);}));
    off.push(await listen('codex-stream',({payload})=>{
     if(payload.conversationId!==boundRef.current)return;
     try{
@@ -365,18 +370,20 @@ function App(){
   const next=draft.trim()?draft+'\n\n'+text:text;if(next.length>100000)throw Error('输入框内容过长，请先发送或整理草稿');
   setDraft(next);closeSlash();closeContext();setCommandMessage('卡片消息已填入输入框，发送后执行。');requestAnimationFrame(()=>draftBox.current?.focus());
  }
+ nativeActions.current={settings:()=>setSettingsOpenRequest(value=>value+1),mini:()=>changeCompact(true)};
  return <LinkProvider cwd={conversation?.cwd||conversation?.latestThreadSettings?.cwd} scope={selected}><McpAppsContext.Provider value={{threadId:selected,enabled:status==='live'&&selected===boundRef.current&&!compact,onFollowUp:stageMcpFollowUp}}><SubagentActionsContext.Provider value={{parentId:selected,enabled:status==='live'&&selected===boundRef.current}}><main className={'shell'+(compact?' compact':'')}>
   {compact&&<MiniStatus status={miniStatus(conversation,status,sending||optimistic.some(m=>!m.failed))} onRestore={()=>changeCompact(false)} onError={setError}/>}
   <div className="chat-panel" hidden={compact}>
-  <header className="titlebar" onMouseDown={e=>{if(e.button===0&&!e.target.closest('button'))native&&getCurrentWindow().startDragging().catch(()=>{});}}>
+  {!nativeWindowControls&&<header className="titlebar" onMouseDown={e=>{if(e.button===0&&!e.target.closest('button'))native&&getCurrentWindow().startDragging().catch(()=>{});}}>
    <div className="brand"><img className="brand-mark" src={chatgptIcon} alt="" aria-hidden="true"/><span>Codex 悬浮窗</span></div>
    <div className="window-actions">
     <Settings predictionsEnabled={predictionsEnabled} onPredictionsChange={changePredictions}/>
-    <button className={'icon-button caption-button pin-button'+(pinned?' active':'')} aria-label={pinned?'取消置顶':'置顶'} aria-pressed={pinned} title={pinned?'取消置顶':'置顶'} onClick={async()=>{try{await getCurrentWindow().setAlwaysOnTop(!pinned);setPinned(!pinned);}catch(e){setError(String(e));}}}><Pin size={16}/></button>
+    <button className={'icon-button caption-button pin-button'+(pinned?' active':'')} aria-label={pinned?'取消置顶':'置顶'} aria-pressed={pinned} title={pinned?'取消置顶':'置顶'} onClick={async()=>{try{await getCurrentWindow().setAlwaysOnTop(!pinned);setPinned(!pinned);}catch(e){setError(String(e));}}}><span className="pin-icon" aria-hidden="true"/></button>
     {iconButton('最小化为状态球',<Minus size={16}/>,()=>changeCompact(true),'caption-button')}
     {iconButton('关闭面板',<X size={16}/>,()=>getCurrentWindow().close(),'caption-button close')}
    </div>
-  </header>
+  </header>}
+  {nativeWindowControls&&<Settings nativeToolbar openRequest={settingsOpenRequest} available={!compact} predictionsEnabled={predictionsEnabled} onPredictionsChange={changePredictions}/>}
   <section className="connection">
    <div className="section-label"><label htmlFor="thread-picker">当前聊天</label><span className="current-project" title={selectedProjectTitle}>{selectedProject}</span></div>
    <div className="thread-row"><ThreadPicker threads={threads} value={selected} disabled={status==='connecting'||forkSaving} onChange={id=>{selectedRef.current=id;setSelected(id);setFollow(true);connect(id);}}/>
