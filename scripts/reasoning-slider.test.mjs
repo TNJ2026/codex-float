@@ -21,7 +21,7 @@ test('reasoning slider previews discrete levels, commits only on release and can
   await render();assert.equal(slider().value,'1');assert.equal(slider().max,'5');assert.match(slider().getAttribute('aria-valuetext'),/中.*默认/);
   await pointer('pointerdown');await change(2);await change(4);await change(5);
   assert.equal(commits.length,0);assert.equal(previews.at(-1),true);assert.equal(slider().getAttribute('aria-valuetext'),'极高');
-  await pointer('pointerup');await pointer('lostpointercapture');
+  await act(async()=>window.dispatchEvent(new dom.window.Event('pointerup')));
   assert.deepEqual(commits,['ultra']);assert.equal(previews.at(-1),false);await render();
   await pointer('pointerdown');await change(2);await pointer('pointercancel');
   assert.deepEqual(commits,['ultra']);assert.equal(slider().value,'5');assert.equal(previews.at(-1),false);

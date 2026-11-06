@@ -1,4 +1,4 @@
-import {isNativeMac} from './native-menu';
+import {usesNativeMenus} from './native-menu';
 import {NativePermissionPicker} from './NativePickers';
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
@@ -55,4 +55,4 @@ function WebPermissionPicker({threadId,conversation,disabled,onApplied,onError,o
  </>;
 }
 
-export function PermissionPicker(props){return isNativeMac()?<NativePermissionPicker {...props}/>:<WebPermissionPicker {...props}/>;}
+export function PermissionPicker(props){return usesNativeMenus()?<NativePermissionPicker {...props}/>:<WebPermissionPicker {...props}/>;}

@@ -165,29 +165,54 @@ impl Client {
             let _ = self.follow(&thread, &owner, false);
         }
     }
-    pub(crate) fn inspect_child(&self, thread: &str, owner: &str) -> Result<Value, String> {
+    pub(crate) fn load_history(
+        &self,
+        thread: &str,
+        owner: &str,
+        require_snapshot: bool,
+    ) -> Result<Option<Value>, String> {
         let (tx, rx) = mpsc::channel();
         {
             let mut slots = self.snapshots.lock().map_err(|_| "子代理连接不可用")?;
             if slots.contains_key(thread) {
-                return Err("该子代理正在刷新，请稍后重试".into());
+                return Err("该聊天正在同步，请稍后重试".into());
             }
             slots.insert(thread.into(), tx);
         }
         let result = (|| {
             self.follow(thread, owner, true)?;
-            self.rpc(
+            let history = self.rpc(
                 "thread-follower-load-complete-history",
                 json!({"conversationId":thread}),
                 1,
                 Some(owner),
-            )?;
+            );
+            let cursor_error = match history {
+                Ok(_) if !require_snapshot => return Ok(None),
+                Ok(_) => None,
+                Err(error)
+                    if error.contains(
+                        "cursor.itemId does not identify an item in the requested history scope",
+                    ) =>
+                {
+                    Some(error)
+                }
+                Err(error) => return Err(error),
+            };
             rx.recv_timeout(Duration::from_secs(5))
-                .map_err(|_| "尚未收到子代理状态，请刷新重试".into())
+                .map(Some)
+                .map_err(|_| cursor_error.unwrap_or_else(|| "尚未收到聊天状态，请刷新重试".into()))
         })();
-        let _ = self.follow(thread, owner, false);
+        if require_snapshot {
+            let _ = self.follow(thread, owner, false);
+        }
         self.snapshots.lock().unwrap().remove(thread);
         result
+    }
+
+    pub(crate) fn inspect_child(&self, thread: &str, owner: &str) -> Result<Value, String> {
+        self.load_history(thread, owner, true)?
+            .ok_or_else(|| "尚未收到子代理状态，请刷新重试".into())
     }
 }
 #[derive(Default)]
@@ -207,5 +232,56 @@ pub(crate) fn get_client(app: &tauri::AppHandle) -> Result<Arc<Client>, String> 
 pub(crate) fn shutdown(app: &tauri::AppHandle) {
     if let Some(client) = app.state::<Bridge>().0.lock().unwrap().as_ref() {
         client.unbind();
+    }
+}
+
+#[cfg(test)]
+mod history_tests {
+    use super::*;
+
+    #[test]
+    fn cursor_error_only_recovers_when_a_snapshot_arrives() {
+        const CURSOR_ERROR: &str =
+            "cursor.itemId does not identify an item in the requested history scope";
+        for (snapshot, error) in [
+            (Some(json!({"turns": []})), CURSOR_ERROR),
+            (None, CURSOR_ERROR),
+            (Some(json!({"turns": []})), "owner unavailable"),
+        ] {
+            let (writer, mut outgoing) = tokio::sync::mpsc::unbounded_channel();
+            let client = Client {
+                writer,
+                pending: Mutex::new(HashMap::new()),
+                id: Mutex::new("test-client".into()),
+                binding: Mutex::new(None),
+                snapshots: Mutex::new(HashMap::new()),
+                alive: std::sync::atomic::AtomicBool::new(true),
+            };
+            std::thread::scope(|scope| {
+                let reply = snapshot.clone();
+                let worker = scope.spawn(|| client.load_history("thread", "owner", false));
+                let follow = outgoing.blocking_recv().unwrap();
+                let request = outgoing.blocking_recv().unwrap();
+                if let Some(state) = reply {
+                    client.snapshots.lock().unwrap()["thread"]
+                        .send(state)
+                        .unwrap();
+                }
+                let request_id = request["requestId"].as_str().unwrap();
+                client.pending.lock().unwrap()[request_id]
+                    .send(json!({"resultType": "error", "error": error}))
+                    .unwrap();
+                let result = worker.join().unwrap();
+                assert_eq!(follow["params"]["following"], true);
+                assert_eq!(request["method"], "thread-follower-load-complete-history");
+                if error == CURSOR_ERROR && snapshot.is_some() {
+                    assert_eq!(result, Ok(snapshot));
+                } else {
+                    assert_eq!(result, Err(error.into()));
+                }
+                assert!(client.snapshots.lock().unwrap().is_empty());
+                assert!(outgoing.try_recv().is_err());
+            });
+        }
     }
 }

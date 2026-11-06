@@ -2,8 +2,6 @@ import React,{useEffect,useRef,useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {ChevronDown,MessageSquare,Zap} from 'lucide-react';
 import {popupNativeMenu} from './native-menu';
-import {modelDisplayName} from './model';
-import {effortForModel,effortLabel,supportedEfforts} from './model-settings';
 import {permissionOptions,permissionPreset} from './permissions';
 import {effectiveTier,fastTier,isFast,speedLabel} from './speed-settings';
 import {groupThreads} from './thread-groups';
@@ -35,29 +33,6 @@ function usePicker(props){
 }
 const separator=()=>({item:'Separator'});
 const note=text=>({text,enabled:false});
-
-export function NativeModelPicker(props){
- const {model,effort,names={},disabled,busy,openRequest}=props;
- const picker=usePicker(props);
- async function show(){await picker.run(async({target,valid,apply,menu})=>{
-  const result=await invoke('read_model_options',{threadId:target,forceReload:true});
-  if(!valid())return;
-  const models=result.models||[],base=result.settings,option=models.find(entry=>entry.model===base.model);
-  let selection=null;
-  const choose=(nextModel,nextEffort)=>{selection={model:nextModel,effort:nextEffort||null};};
-  await menu([
-   {text:'模型',items:models.length?models.map(entry=>({text:modelDisplayName(entry.model,{...names,[entry.model]:entry.displayName||names[entry.model]}),checked:entry.model===base.model,action:()=>choose(entry.model,effortForModel(entry,base.reasoningEffort))})):[note('暂无可用模型')]},
-   separator(),note('推理强度'),
-   {text:'默认',checked:!base.reasoningEffort,enabled:!!option,action:()=>choose(base.model,'')},
-   ...supportedEfforts(option).map(entry=>({text:effortLabel(entry.reasoningEffort),checked:base.reasoningEffort===entry.reasoningEffort,action:()=>choose(base.model,entry.reasoningEffort)})),
-   ...(!option?[note('当前模型未在列表中，请检查 Codex CLI 版本')]:[]),
-   separator(),note(busy?'任务进行中，修改后下轮生效':'选择后自动保存，下轮生效'),
-  ]);
-  if(selection&&(selection.model!==base.model||selection.effort!==(base.reasoningEffort||null)))await apply('update_model_settings',{...selection,expectedModel:base.model,expectedEffort:base.reasoningEffort??null});
- });}
- useEffect(()=>{if(openRequest)show();},[openRequest]);
- return <button type="button" ref={picker.button} className="model-picker-button" aria-label="选择模型与推理强度" aria-haspopup="menu" aria-expanded={picker.open} disabled={disabled||picker.saving||picker.loading} title={picker.loading?'正在读取模型…':picker.saving?'正在保存模型设置…':`${modelDisplayName(model,names)||'模型'} · ${effortLabel(effort)}`} onClick={show}><span className="model-name">{modelDisplayName(model,names)||'等待模型信息'}</span><small>{picker.loading?'读取中':picker.saving?'保存中':effortLabel(effort)}</small><ChevronDown size={11}/></button>;
-}
 
 export function NativePermissionPicker(props){
  const {conversation,disabled,openRequest}=props,picker=usePicker(props),selected=permissionPreset(conversation),label=permissionOptions.find(option=>option.id===selected)?.label||'自定义权限';

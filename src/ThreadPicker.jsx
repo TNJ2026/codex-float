@@ -1,4 +1,4 @@
-import {isNativeMac} from './native-menu';
+import {usesNativeMenus} from './native-menu';
 import {NativeThreadPicker} from './NativePickers';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {MessageSquare, ChevronDown, Check, Folder} from 'lucide-react';
@@ -66,4 +66,7 @@ function WebThreadPicker({threads, value, disabled, onChange}) {
  </div>;
 }
 
-export function ThreadPicker(props){return isNativeMac()?<NativeThreadPicker {...props}/>:<WebThreadPicker {...props}/>;}
+export function ThreadPicker(props){
+ const windowsMenu=usesNativeMenus()&&document.documentElement.dataset.nativeCaption==='true';
+ return windowsMenu?<NativeThreadPicker {...props}/>:<WebThreadPicker {...props}/>;
+}

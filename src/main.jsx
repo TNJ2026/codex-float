@@ -63,6 +63,7 @@ const Message = memo(function Message({id,type,role,phase,text='',images,files,c
 });
 function App(){
  const [nativeWindowControls,setNativeWindowControls]=useState(false);
+ const [nativeCaption,setNativeCaption]=useState(false);
  const [settingsOpenRequest,setSettingsOpenRequest]=useState(0),nativeActions=useRef({});
  const [sendWarning,setSendWarning]=useState(null);
  const [predictionsEnabled,setPredictionsEnabled]=useState(()=>readPredictions(localStorage));
@@ -259,7 +260,17 @@ function App(){
  }
  useEffect(()=>{
   if(!native){setError('请使用 Tauri 启动此面板以连接桌面端');return;}
-  invoke('background_settings').then(settings=>{document.documentElement.dataset.nativeBackground=settings.mode;document.documentElement.dataset.nativeWindowControls=String(!!settings.nativeWindowControls);if(Number.isFinite(settings.titlebarHeight))document.documentElement.style.setProperty('--native-titlebar-height',`${settings.titlebarHeight}px`);setNativeWindowControls(!!settings.nativeWindowControls);if(settings.error)setError('背景材质已回退：'+settings.error);}).catch(()=>{});
+  invoke('background_settings').then(settings=>{
+   const root=document.documentElement;
+   root.dataset.nativeBackground=settings.mode;
+   root.dataset.nativeWindowControls=String(!!settings.nativeWindowControls);
+   root.dataset.nativeMenus=String(!!settings.nativeMenus);
+   root.dataset.nativeCaption=String(!!settings.nativeCaption);
+   if(Number.isFinite(settings.titlebarHeight))root.style.setProperty('--native-titlebar-height',`${settings.titlebarHeight}px`);
+   setNativeWindowControls(!!settings.nativeWindowControls);
+   setNativeCaption(!!settings.nativeCaption);
+   if(settings.error)setError('背景材质已回退：'+settings.error);
+  }).catch(()=>{});
   let disposed=false,off=[];
   (async()=>{
    off.push(await listen('native-titlebar-action',({payload})=>nativeActions.current[payload]?.()));
@@ -374,13 +385,13 @@ function App(){
  return <LinkProvider cwd={conversation?.cwd||conversation?.latestThreadSettings?.cwd} scope={selected}><McpAppsContext.Provider value={{threadId:selected,enabled:status==='live'&&selected===boundRef.current&&!compact,onFollowUp:stageMcpFollowUp}}><SubagentActionsContext.Provider value={{parentId:selected,enabled:status==='live'&&selected===boundRef.current}}><main className={'shell'+(compact?' compact':'')}>
   {compact&&<MiniStatus status={miniStatus(conversation,status,sending||optimistic.some(m=>!m.failed))} onRestore={()=>changeCompact(false)} onError={setError}/>}
   <div className="chat-panel" hidden={compact}>
-  {!nativeWindowControls&&<header className="titlebar" onMouseDown={e=>{if(e.button===0&&!e.target.closest('button'))native&&getCurrentWindow().startDragging().catch(()=>{});}}>
-   <div className="brand"><img className="brand-mark" src={chatgptIcon} alt="" aria-hidden="true"/><span>Codex 悬浮窗</span></div>
+  {!nativeWindowControls&&<header className={nativeCaption?"titlebar window-toolbar":"titlebar"} onMouseDown={e=>{if(!nativeCaption&&e.button===0&&!e.target.closest('button'))native&&getCurrentWindow().startDragging().catch(()=>{});}}>
+   {!nativeCaption&&<div className="brand"><img className="brand-mark" src={chatgptIcon} alt="" aria-hidden="true"/><span>Codex 悬浮窗</span></div>}
    <div className="window-actions">
     <Settings predictionsEnabled={predictionsEnabled} onPredictionsChange={changePredictions}/>
     <button className={'icon-button caption-button pin-button'+(pinned?' active':'')} aria-label={pinned?'取消置顶':'置顶'} aria-pressed={pinned} title={pinned?'取消置顶':'置顶'} onClick={async()=>{try{await getCurrentWindow().setAlwaysOnTop(!pinned);setPinned(!pinned);}catch(e){setError(String(e));}}}><span className="pin-icon" aria-hidden="true"/></button>
     {iconButton('最小化为状态球',<Minus size={16}/>,()=>changeCompact(true),'caption-button')}
-    {iconButton('关闭面板',<X size={16}/>,()=>getCurrentWindow().close(),'caption-button close')}
+    {!nativeCaption&&iconButton('关闭面板',<X size={16}/>,()=>getCurrentWindow().close(),'caption-button close')}
    </div>
   </header>}
   {nativeWindowControls&&<Settings nativeToolbar openRequest={settingsOpenRequest} available={!compact} predictionsEnabled={predictionsEnabled} onPredictionsChange={changePredictions}/>}

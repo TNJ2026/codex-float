@@ -31,7 +31,7 @@ fn enter(window: &WebviewWindow, normal: &WindowSnapshot) -> tauri::Result<()> {
     window.set_resizable(false)?;
     let scale = window.scale_factor()?;
     let physical = (MINI_SIZE * scale).round() as u32;
-    native_window::prepare_compact(window, true, physical, physical, scale);
+    native_window::prepare_compact(window, true, physical, physical, scale)?;
     window.set_shadow(false)?;
     native_window::border(window, true);
     window.set_size(LogicalSize::new(MINI_SIZE, MINI_SIZE))?;
@@ -49,7 +49,7 @@ fn restore(window: &WebviewWindow, normal: &WindowSnapshot) -> tauri::Result<()>
         normal.size.width,
         normal.size.height,
         window.scale_factor()?,
-    );
+    )?;
     window.set_resizable(normal.resizable)?;
     // Shadow changes non-client frame offsets; restore it before measuring size.
     window.set_shadow(true)?;

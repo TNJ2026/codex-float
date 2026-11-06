@@ -1,7 +1,15 @@
 use crate::{codex, platform, services};
+use tauri::Manager;
 
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .manage(codex::Bridge::default())
         .manage(services::mini_mode::MiniModeState::default())
         .manage(services::model_settings::ModelSettingsState::default())

@@ -11,6 +11,13 @@ test('completed screenshot-style tool summary opens a popup with every original 
  const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false,ws:false,watch:null},appType:'custom'});let root;
  try{const {ToolProcessGroup}=await vite.ssrLoadModule('/src/ToolDetails.jsx');const {createRoot}=await import('react-dom/client');root=createRoot(document.getElementById('root'));await act(async()=>root.render(React.createElement(ToolProcessGroup,{calls:[call('a'),call('b')]})));
  const button=document.querySelector('.tool-process-completed');assert.equal(button.textContent,'运行了命令');assert.equal(button.querySelector('small'),null);assert.equal(document.querySelector('pre'),null);await act(async()=>button.click());assert.match(document.querySelector('[role="dialog"]').textContent,/output a/);
- const select=document.querySelector('[aria-label="选择过程中的工具调用"]');assert.equal(select.options.length,2);await act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype,'value').set.call(select,'b');select.dispatchEvent(new dom.window.Event('change',{bubbles:true}));});assert.match(document.querySelector('[role="dialog"]').textContent,/output b/);assert.equal(document.getElementById('root').querySelector('pre'),null);
+ const picker=document.querySelector('.tool-group-picker');
+ await act(async()=>picker.querySelector('summary').click());
+ assert.equal(picker.open,true);
+ const choices=picker.querySelectorAll('li button');
+ assert.equal(choices.length,2);
+ await act(async()=>choices[1].click());
+ assert.equal(picker.open,false);
+ assert.match(document.querySelector('[role="dialog"]').textContent,/output b/);assert.equal(document.getElementById('root').querySelector('pre'),null);
  }finally{if(root)await act(async()=>root.unmount());await vite.close();dom.window.close();keys.forEach((k,i)=>{if(previous[i]===undefined)delete globalThis[k];else globalThis[k]=previous[i];});}
 });

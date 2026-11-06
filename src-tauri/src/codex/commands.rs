@@ -22,13 +22,7 @@ pub async fn connect_thread(app: tauri::AppHandle, thread_id: String) -> Result<
             .to_string();
         c.unbind();
         *c.binding.lock().unwrap() = Some((thread_id.clone(), owner.clone()));
-        c.follow(&thread_id, &owner, true)?;
-        if let Err(error) = c.rpc(
-            "thread-follower-load-complete-history",
-            json!({"conversationId":thread_id}),
-            1,
-            Some(&owner),
-        ) {
+        if let Err(error) = c.load_history(&thread_id, &owner, false) {
             c.unbind();
             return Err(error);
         }

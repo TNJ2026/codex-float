@@ -1,6 +1,6 @@
 import React,{useEffect,useId,useMemo,useRef,useState} from 'react';
 import {PreviewDialog} from './PreviewDialog';
-import {Check,LoaderCircle,Terminal,Wrench,Search,FileText,AlertCircle,Pencil} from 'lucide-react';
+import {Check,LoaderCircle,Terminal,Wrench,Search,FileText,AlertCircle,Pencil,ChevronDown} from 'lucide-react';
 import {completedToolLabel} from './completed-work';
 import {toolSections} from './tool-details';
 import {copyText} from './message-actions';
@@ -57,6 +57,35 @@ export function ToolHistory({calls=[],label='工具调用历史'}){
  </>}</details>;
 }
 
+function ToolGroupPicker({calls,selected,onSelect}){
+ const picker=useRef(null),trigger=useRef(null);
+ function close(restoreFocus=false){
+  picker.current.open=false;
+  if(restoreFocus)trigger.current.focus();
+ }
+ return <details ref={picker} className="tool-group-picker" onBlur={event=>{
+  if(event.relatedTarget&&!event.currentTarget.contains(event.relatedTarget))close();
+ }} onKeyDown={event=>{
+  if(event.key==='Escape'&&picker.current.open){
+   event.preventDefault();
+   event.stopPropagation();
+   close(true);
+  }
+ }}>
+  <summary ref={trigger} aria-label="选择过程中的工具调用">
+   <span>{calls.indexOf(selected)+1}. {selected.toolTitle}</span><ChevronDown size={14} aria-hidden="true"/>
+  </summary>
+  <ul className="tool-group-options" aria-label="工具调用">
+   {calls.map((call,index)=><li key={call.id}>
+    <button type="button" aria-current={call.id===selected.id||undefined} onClick={()=>{
+     onSelect(call.id);
+     close(true);
+    }}><span>{index+1}. {call.toolTitle}</span></button>
+   </li>)}
+  </ul>
+ </details>;
+}
+
 export function ToolActivity({title,detail,inline=false,groupCalls=null}){
  const [open,setOpen]=useState(false),anchor=useRef(),id=useId();
  const [selectedId,setSelectedId]=useState(null);
@@ -71,6 +100,6 @@ export function ToolActivity({title,detail,inline=false,groupCalls=null}){
  if(!detail)return <div className="activity-tool-title" title={title}>{title}</div>;
  return <>
   <button type="button" ref={anchor} className={'activity-tool-title tool-activity-trigger'+(inline?' tool-timeline-trigger':'')+(groupCalls?' tool-process-completed':'')} data-tool-id={inline?detail.toolCall.id||detail.id:undefined} data-status={inline?detail.toolStatus:undefined} title={title} aria-label={`查看工具调用详情：${title}`} aria-haspopup="dialog" aria-expanded={open} aria-controls={open?id:undefined} onClick={()=>{if(!open)window.dispatchEvent(new window.CustomEvent('tool-details-open',{detail:id}));setOpen(value=>!value);}}>{inline?<>{detail.toolStatus==='inProgress'?<LoaderCircle size={12} className="spin"/>:groupCalls?.some(call=>call.toolCall.type==='fileChange')?<Pencil size={14}/>:<Terminal size={14}/>}<span>{title}</span>{!groupCalls&&<small>{statuses[detail.toolStatus]||statuses.unknown}</small>}</>:title}</button>
-  {open&&<PreviewDialog title="工具调用详情" onClose={()=>setOpen(false)} className="tool-details-popup"><div id={id}>{groupCalls?.length>1&&<select className="tool-group-select" aria-label="选择过程中的工具调用" value={selected.id} onChange={event=>setSelectedId(event.target.value)}>{groupCalls.map((call,index)=><option key={call.id} value={call.id}>{index+1}. {call.toolTitle}</option>)}</select>}<ToolDetails key={selected.id} item={selected.toolCall} status={selected.toolStatus} title={groupCalls?selected.toolTitle:title}/></div></PreviewDialog>}
+  {open&&<PreviewDialog title="工具调用详情" onClose={()=>setOpen(false)} className="tool-details-popup"><div id={id}>{groupCalls?.length>1&&<ToolGroupPicker calls={groupCalls} selected={selected} onSelect={setSelectedId}/>}<ToolDetails key={selected.id} item={selected.toolCall} status={selected.toolStatus} title={groupCalls?selected.toolTitle:title}/></div></PreviewDialog>}
  </>;
 }

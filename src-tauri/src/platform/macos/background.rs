@@ -60,14 +60,17 @@ pub fn settings_backdrop(window: &WebviewWindow, rect: Option<[f64; 4]>) -> Resu
         }
         let allocated: Allocated<NSView> = msg_send![class, alloc];
         let glass: Retained<NSView> = msg_send![allocated, initWithFrame: frame];
-        let _: () = msg_send![&*glass, setStyle: 0_isize];
+        let _: () = msg_send![&*glass, setStyle: CLEAR_GLASS_STYLE];
         let _: () = msg_send![&*glass, setCornerRadius: 16_f64];
         let _: () = msg_send![&*host, addSubview: &*glass, positioned: -1_isize, relativeTo: std::ptr::null::<NSView>()];
     }
     Ok(true)
 }
+const CLEAR_GLASS_STYLE: isize = 1;
+
 // Resolve the class dynamically so the binary still launches on macOS 13–25.
 // All calls originate from Tauri setup or the mini-mode main-thread closure.
+
 fn apply_glass(window: &WebviewWindow, radius: f64) -> Result<bool, String> {
     let Some(class) = AnyClass::get(c"NSGlassEffectView") else {
         return Ok(false);
@@ -92,7 +95,7 @@ fn apply_glass(window: &WebviewWindow, radius: f64) -> Result<bool, String> {
         let glass: Retained<NSView> = msg_send![allocated, initWithFrame: content.bounds()];
         // Clear Liquid Glass preserves more of the desktop's color and makes
         // the native refractive edge visible on this floating window.
-        let _: () = msg_send![&*glass, setStyle: 1_isize];
+        let _: () = msg_send![&*glass, setStyle: CLEAR_GLASS_STYLE];
         let _: () = msg_send![&*glass, setCornerRadius: radius];
         let resize = NSAutoresizingMaskOptions::ViewWidthSizable
             | NSAutoresizingMaskOptions::ViewHeightSizable;

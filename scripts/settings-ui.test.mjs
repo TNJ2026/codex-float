@@ -8,12 +8,15 @@ test('settings popup changes and saves appearance, keeps native glass and closes
  const dom=new JSDOM('<div id="root"></div><button id="outside">outside</button>',{url:'http://localhost'});
  const globals=['window','document','localStorage','IS_REACT_ACT_ENVIRONMENT'],previous=globals.map(key=>globalThis[key]);
  globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.localStorage=dom.window.localStorage;globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
+ dom.window.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
  const calls=[];
  let mode='custom-blur',dragCount=0;
- dom.window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'}},invoke:async(cmd,args)=>{
+ dom.window.__TAURI_INTERNALS__={transformCallback:()=>1,metadata:{currentWindow:{label:'main'}},invoke:async(cmd,args)=>{
   calls.push({cmd,args});
   if(cmd==='background_settings')return {mode,amount:10};
   if(cmd==='settings_backdrop')return true;
+
  }};
  const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false},appType:'custom'});
  let root;
@@ -103,8 +106,11 @@ test('settings popup changes and saves appearance, keeps native glass and closes
   assert.equal(document.querySelector('.settings-panel'),null);
   assert.equal(chat.firstElementChild.style.clipPath,'inset(0)');
   assert.equal(calls.filter(call=>call.cmd==='settings_backdrop').at(-1).args.rect,null);
+  document.documentElement.dataset.nativeWindowControls='true';
   await act(async()=>root.render(React.createElement(Settings,{nativeToolbar:true,openRequest:1})));
-  assert.ok(document.querySelector('.settings-panel'),'the native action opens settings');
+  assert.ok(document.querySelector('dialog.settings-panel[open]'),'the native action opens settings in the modal top layer');
+  await click(themeButton('dark'));
+  assert.equal(document.documentElement.dataset.theme,'dark','the theme button applies the chosen theme');
   await act(async()=>root.render(React.createElement(Settings,{nativeToolbar:true,openRequest:2})));
   assert.ok(document.querySelector('.settings-panel'),'repeated native Settings actions keep the panel open');
   await click(document.querySelector('[aria-label="关闭设置"]'));

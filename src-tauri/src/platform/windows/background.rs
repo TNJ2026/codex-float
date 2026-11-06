@@ -103,7 +103,7 @@ pub fn disable_accent(hwnd: HWND) {
 
 #[tauri::command]
 pub fn background_settings(status: tauri::State<'_, BackdropStatus>) -> serde_json::Value {
-    serde_json::json!({"mode":if status.custom { "custom-blur" } else if status.legacy.load(Ordering::Relaxed) { "acrylic" } else { "blur" },"amount":*status.amount.lock().unwrap(),"adjustableBlur":status.custom,"error":status.error})
+    serde_json::json!({"mode":if status.custom { "custom-blur" } else if status.legacy.load(Ordering::Relaxed) { "acrylic" } else { "blur" },"amount":*status.amount.lock().unwrap(),"adjustableBlur":status.custom,"nativeMenus":true,"nativeCaption":true,"error":status.error})
 }
 
 fn validate_amount(amount: f32) -> Result<(), String> {

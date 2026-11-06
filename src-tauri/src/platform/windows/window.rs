@@ -19,7 +19,14 @@ pub fn border(window: &WebviewWindow, compact: bool) {
         }
     }
 }
-pub fn prepare_compact(window: &WebviewWindow, compact: bool, width: u32, height: u32, scale: f64) {
+pub fn prepare_compact(
+    window: &WebviewWindow,
+    compact: bool,
+    width: u32,
+    height: u32,
+    scale: f64,
+) -> tauri::Result<()> {
+    window.set_decorations(!compact)?;
     custom_blur::set_compact(compact, width, height, scale);
     if !custom_blur::active() {
         if let Ok(hwnd) = window.hwnd() {
@@ -28,6 +35,7 @@ pub fn prepare_compact(window: &WebviewWindow, compact: bool, width: u32, height
             }
         }
     }
+    Ok(())
 }
 pub fn finish_restore(window: &WebviewWindow) {
     if !custom_blur::active() {

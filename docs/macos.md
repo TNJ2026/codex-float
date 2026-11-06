@@ -25,12 +25,12 @@
 - 本地索引使用 `PathBuf::join` 与 `HOME/.codex`，支持 `CODEX_HOME` 覆盖。
 - 默认浏览器和 Finder 定位使用 `/usr/bin/open`，通过独立参数传递地址或路径。
 - CLI 优先使用 `CODEX_FLOAT_CLI_PATH` 指定路径，其次使用桌面 App（ChatGPT / Codex）自带的 CLI，最后回退到 `PATH` 和 Homebrew 常见目录，避免旧 CLI 的模型目录与主窗口不一致。
-- 模型、推理强度、聊天、权限和速度选择使用 AppKit 原生菜单，支持系统键盘导航、勾选状态和取消；Windows 保留原有选择面板。
+- 权限、速度和主题使用系统原生菜单。模型和推理强度共用自定义弹窗与滑块。macOS 由 AppKit 渲染，Windows 由 Win32 渲染。macOS 的会话选择使用自定义项目分组列表，Windows 的会话选择使用系统菜单。工具调用详情的长命令列表继续共用网页组件，以限制宽度并截断超长条目。
 - macOS 26+ 背景使用原生 `NSGlassEffectView` Clear Liquid Glass，运行时查找类，macOS 13–25 自动回退为 Vibrancy。聊天视图放入玻璃视图的 `contentView`，窗口缩放由原生 autoresizing 跟随；状态球复用同一视图并调整圆角，不重复叠加材质。设置面板提供主题和背景 Alpha 调整，不提供模糊程度调节；Clear 材质透出更多背景，聊天窗口使用 20pt 圆角；前端底色强度直接跟随透明度滑块，默认保留 60% 底色以维持文字对比度。
 - 状态球窗口状态与恢复逻辑共享，macOS 使用自己的圆角材质接口。
 - 配置包含 `.icns` 图标、`.app` / `.dmg` 目标、Apple Silicon / Intel CI。
 - 设置弹窗在 macOS 26+ 使用独立的原生 Liquid Glass 底层，按面板位置和尺寸更新，关闭时移除。网页控件保留在 WebView 内接收输入；仅裁去面板下方重叠的聊天内容，防止文字透叠。原生底层不可用时回退为原有网页背景。
-- 主窗口使用 AppKit 原生 `NSToolbar` 的 Unified 样式，由系统统一布局红黄绿按钮、窗口标题和 SF Symbols 操作按钮；不再移动系统私有标题栏视图，也不设置 `trafficLightPosition`。移除 Mac 网页标题行及装饰性应用图标。内容区按主线程测得的 `contentLayoutRect` 留出空间，支持系统布局变化。设置、置顶、悬浮球都有菜单入口；进入悬浮球时隐藏工具栏，恢复后由 AppKit 重新布局。Windows 保持原有窗口控件。
+- 主窗口使用 AppKit 原生 `NSToolbar` 的 Unified 样式，由系统统一布局红黄绿按钮、窗口标题和 SF Symbols 操作按钮；不再移动系统私有标题栏视图，也不设置 `trafficLightPosition`。移除 Mac 网页标题行及装饰性应用图标。内容区按主线程测得的 `contentLayoutRect` 留出空间，支持系统布局变化。设置、置顶、悬浮球都有菜单入口；进入悬浮球时隐藏工具栏，恢复后由 AppKit 重新布局。Windows 使用系统标题栏的最小化、最大化和关闭按钮。设置、置顶和悬浮球位于应用工具栏。
 
 2026-11-05 已在本机 macOS 27.2 上实机确认 Liquid Glass 模式、聊天同步、设置面板交互，以及状态球缩小和恢复。旧版系统的 Vibrancy 回退尚未在旧系统实机复测。原生接口依据 [Apple NSGlassEffectView 文档](https://developer.apple.com/documentation/appkit/nsglasseffectview)。
 

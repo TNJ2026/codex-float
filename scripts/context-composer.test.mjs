@@ -12,7 +12,7 @@ test('composer keyboard completion sends structured context without a prompt and
  localStorage.setItem('codex-float-predictions','true');
  dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
  const callbacks=new Map(),events=new Map(),calls=[];
- let nativeItems=[],nativeChoice='高';
+ let nativeItems=[];
  let finishModelSave;
  let finishSpeedSave;
  let acceptSend=false;
@@ -31,10 +31,7 @@ test('composer keyboard completion sends structured context without a prompt and
   if(cmd==='read_usage')return {};
   if(cmd==='plugin:menu|new'){nativeItems=args.options.items;return [1,'native-test'];}
   if(cmd==='plugin:resources|close')return;
-  if(cmd==='plugin:menu|popup'){
-   const visit=items=>items.flatMap(item=>[item,...(item.items?visit(item.items):[])]);
-   const item=visit(nativeItems).find(item=>item.text===nativeChoice);item?.handler?.onmessage(item.id);return;
-  }
+  if(cmd==='plugin:menu|popup')return;
   if(cmd==='search_context_files')return [file];
   if(cmd==='search_context_threads')return [{kind:'thread',label:'other conversation',path:'codex://threads/00000000-0000-4000-8000-000000000001',source:'Project'}];
   if(cmd==='context_catalog')return {skills:[{kind:'skill',label:'test-skill',path:'C:/skills/test/SKILL.md',description:'Create a report'}],plugins:[],warnings:[]};
@@ -88,8 +85,11 @@ test('composer keyboard completion sends structured context without a prompt and
   await key('Enter');
   assert.match(document.querySelector('.context-chip').textContent,/other conversation/);
   await act(async()=>document.querySelector('[aria-label="选择模型与推理强度"]').click());
-  nativeChoice=null;
-  assert.ok(calls.some(call=>call.cmd==='plugin:menu|popup'),'Mac model changes use AppKit menus');
+  const reasoningSlider=document.querySelector('#reasoning-strength-slider');
+  await act(async()=>{
+   Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(reasoningSlider,'1');
+   reasoningSlider.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+  });
   assert.equal(document.querySelector('[aria-label="发送提示词"]').disabled,true,'sending waits until the model selection is saved');
   const beforeSave=calls.filter(call=>call.cmd==='send_prompt').length;
   await type('next turn');await key('Enter');
@@ -119,7 +119,7 @@ test('composer keyboard completion sends structured context without a prompt and
   const beforeShortcuts=calls.filter(call=>call.cmd==='send_prompt').length;
   await type('/permissions');await key('Enter');assert.ok(nativeItems.some(item=>item.text==='完全访问'));
   await key('Escape');
-  await type('/model');await key('Enter');assert.ok(nativeItems.some(item=>item.text==='推理强度'));
+  await type('/model');await key('Enter');assert.ok(document.querySelector('#model-settings-popup'));
   await key('Escape');
   await type('/status');await key('Enter');assert.ok(document.querySelector('.chat-status'));await act(async()=>document.querySelector('[aria-label="关闭预览"]').click());
   await type('/plan');await key('Enter');assert.equal(calls.filter(call=>call.cmd==='run_chat_command').at(-1).args.command,'plan');

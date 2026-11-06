@@ -9,7 +9,7 @@
         "height": 720,
         "minWidth": 360,
         "minHeight": 480,
-        "decorations": false,
+        "decorations": true,
         "transparent": true,
         "backgroundColor": "#00000000",
         "noRedirectionBitmap": true,

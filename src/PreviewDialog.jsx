@@ -6,7 +6,7 @@ const stack=[];
 const bodyOf=entry=>entry.element.querySelector('.file-preview-body');
 
 export function PreviewDialog({title,onClose,children,className=''}){
- const dialog=useRef(null);
+ const dialog=useRef(null),heading=useRef(null);
  const [hasParent,setHasParent]=useState(false);
  useLayoutEffect(()=>{
   const focused=document.activeElement;
@@ -19,6 +19,7 @@ export function PreviewDialog({title,onClose,children,className=''}){
   stack.push(entry);
   setHasParent(!!previous);
   entry.element.showModal();
+  heading.current.focus({preventScroll:true});
   return ()=>{
    const index=stack.indexOf(entry),wasTop=index===stack.length-1;
    if(index!==-1)stack.splice(index,1);
@@ -31,7 +32,7 @@ export function PreviewDialog({title,onClose,children,className=''}){
   };
  },[]);
  return createPortal(<dialog role="dialog" className={'file-preview '+className} ref={dialog} aria-label={title} onCancel={e=>{e.preventDefault();onClose();}}>
-  <header><strong title={title}>{title}</strong><button type="button" onClick={onClose} aria-label={hasParent?'返回上一层':'关闭预览'}>{hasParent?'返回':'关闭'}</button></header>
+  <header><strong ref={heading} tabIndex={-1} title={title}>{title}</strong><button type="button" onClick={onClose} aria-label={hasParent?'返回上一层':'关闭预览'}>{hasParent?'返回':'关闭'}</button></header>
   <div className="file-preview-body">{children}</div>
  </dialog>,document.body);
 }

@@ -31,6 +31,7 @@ test('shared Tauri config contains no Windows-only material and each platform ha
  assert.equal(common.app.windows[0].noRedirectionBitmap,undefined);
  assert.equal(common.app.windows[0].windowEffects,undefined);
  assert.equal(windows.app.windows[0].noRedirectionBitmap,true);
+ assert.equal(windows.app.windows[0].decorations,true);
  // Native setup selects Liquid Glass at runtime, with Vibrancy on older OSes.
  assert.equal(macos.app.windows[0].windowEffects,undefined);
  assert.equal(macos.bundle.macOS.minimumSystemVersion,'13.0');

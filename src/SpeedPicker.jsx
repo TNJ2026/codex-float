@@ -1,4 +1,4 @@
-import {isNativeMac} from './native-menu';
+import {usesNativeMenus} from './native-menu';
 import {NativeSpeedPicker} from './NativePickers';
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
@@ -50,4 +50,4 @@ function WebSpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplied,on
  </>;
 }
 
-export function SpeedPicker(props){return isNativeMac()?<NativeSpeedPicker {...props}/>:<WebSpeedPicker {...props}/>;}
+export function SpeedPicker(props){return usesNativeMenus()?<NativeSpeedPicker {...props}/>:<WebSpeedPicker {...props}/>;}

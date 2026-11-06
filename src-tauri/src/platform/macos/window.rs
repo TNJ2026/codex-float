@@ -44,7 +44,7 @@ pub fn prepare_compact(
     _width: u32,
     _height: u32,
     _scale: f64,
-) {
+) -> tauri::Result<()> {
     super::toolbar::set_visible(!compact);
     let _ = native_controls(window, compact);
     let _ = super::background::apply(
@@ -55,6 +55,7 @@ pub fn prepare_compact(
             super::background::CHAT_RADIUS
         },
     );
+    Ok(())
 }
 pub fn on_event(window: &Window, event: &WindowEvent) {
     if matches!(event, WindowEvent::Resized(_)) {
