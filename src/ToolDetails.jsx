@@ -2,7 +2,7 @@ import React,{useEffect,useId,useMemo,useRef,useState} from 'react';
 import {PreviewDialog} from './PreviewDialog';
 import {Check,LoaderCircle,Terminal,Wrench,Search,FileText,AlertCircle,Pencil,ChevronDown} from 'lucide-react';
 import {completedToolLabel} from './completed-work';
-import {toolSections} from './tool-details';
+import {displayCommand,toolSections} from './tool-details';
 import {copyText} from './message-actions';
 
 const statuses={inProgress:'运行中',completed:'已完成',failed:'失败',declined:'已拒绝',interrupted:'已中断',stopped:'任务失败，调用已停止',ended:'任务已结束',unknown:'状态未知'};
@@ -30,7 +30,7 @@ function ToolDetails({item,status,title}){
  </div>;
 }
 export function ToolTimelineRow({call}){
- const title=typeof call.toolCall.command==='string'?call.toolCall.command.replace(/\s+/gu,' ').trim():call.toolTitle;
+ const title=typeof call.toolCall.command==='string'?displayCommand(call.toolCall.command).replace(/\s+/gu,' ').trim():call.toolTitle;
  return <ToolActivity title={title} detail={call} inline/>;
 }
 export function ToolProcessGroup({calls}){

@@ -3,7 +3,7 @@ import {imagesOf,generatedImagesOf} from './images.js';
 import {changedFilesOf} from './changed-files.js';
 import {orderedItems,taskDetailMessage} from './task-details.js';
 import {subagentItem,subagentMessage} from './subagents.js';
-import {toolDetailMessage} from './tool-details.js';
+import {toolDetailMessage,toolTitleText} from './tool-details.js';
 import {mcpAppMessage} from './mcp-apps.js';
 import {attachmentsOf,referencesOf} from './rich-content.js';
 import {turnDurationMs} from './work-timing.js';
@@ -103,15 +103,6 @@ export function latestToolDetailOf(state){
   }
   return null;
 }
-function toolTitleOf(item) {
-  let args = item.arguments;
-  if (typeof args === 'string') {
-    try { args = JSON.parse(args); } catch { args = null; }
-  }
-  const title = [item.title, item.toolTitle, args?.title, item.command, item.tool, item.query]
-    .find(value => typeof value === 'string' && value.trim());
-  return title ? title.replace(/\s+/gu, ' ').trim() : toolLabels[item.type];
-}
 export function activityOf(state) {
   const activeTurns = turnsOf(state).filter(t => t.status === 'inProgress');
   if (!activeTurns.length && state?.threadRuntimeStatus?.type !== 'active') return null;
@@ -123,7 +114,7 @@ export function activityOf(state) {
     return keys ? [...new Set(keys)].map(key => entities[key]).filter(Boolean) : Object.values(entities);
   });
   const latestTool = turnItems.filter(item => toolLabels[item.type]).at(-1);
-  const toolTitle = latestTool ? toolTitleOf(latestTool) : undefined;
+  const toolTitle = latestTool ? toolTitleText(latestTool,toolLabels[latestTool.type]) : undefined;
   const activeItems = activeTurns.flatMap(t => {
     const completed = new Set(Array.isArray(t.completedItemIds) ? t.completedItemIds : Object.entries(t.completedItemIds || {}).filter(([,done]) => done === true).map(([id]) => id));
     const items = Array.isArray(t.items) ? t.items : Object.values(t.items?.entitiesByKey || {});

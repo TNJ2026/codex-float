@@ -5,7 +5,23 @@ import {JSDOM} from 'jsdom';
 import {createServer} from 'vite';
 import {messagesOf,applyChange,latestToolDetailOf,activityOf} from '../src/model.js';
 import {transcriptMessages} from '../src/transcript.js';
-import {toolDetailMessage,toolSections,toolValueText} from '../src/tool-details.js';
+import {displayCommand,toolDetailMessage,toolSections,toolValueText} from '../src/tool-details.js';
+import {completedToolLabel} from '../src/completed-work.js';
+
+test('command displays omit the PowerShell launcher while preserving the script and original call',()=>{
+ const script='Get-Content "D:/project notes/readme.md"\nWrite-Output "done"';
+ const wrapped=String.raw`"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -Command '`+script+"'";
+ const item={id:'wrapped',type:'commandExecution',command:wrapped,status:'inProgress'};
+ const turn={status:'inProgress',items:[item]};
+ const detail=toolDetailMessage(item,turn,0,'turn');
+ assert.equal(toolSections(item)[0].text,script);
+ assert.equal(detail.toolTitle,script.replace('\n',' '));
+ assert.equal(activityOf({turns:[turn]}).toolTitle,detail.toolTitle);
+ assert.equal(completedToolLabel([detail]),`已运行 ${detail.toolTitle}`);
+ assert.equal(detail.toolCall.command,wrapped);
+ assert.equal(displayCommand('echo "-Command literal"'),'echo "-Command literal"');
+ assert.equal(displayCommand('pwsh -NonInteractive -Command Get-Date'),'Get-Date');
+});
 
 test('tool history survives completion and reflects canonical streaming updates',()=>{
  const tool={id:'cmd',type:'commandExecution',command:'rg --files',cwd:'D:/repo',status:'inProgress',aggregatedOutput:'one'};

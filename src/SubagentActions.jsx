@@ -3,7 +3,7 @@ import {invoke} from '@tauri-apps/api/core';
 import {PreviewDialog} from './PreviewDialog';
 import {messagesOf,turnsOf} from './model';
 import {orderedItems} from './task-details';
-import {toolDetailItem,toolSections} from './tool-details';
+import {displayCommand,toolDetailItem,toolSections} from './tool-details';
 import {Markdown} from './Markdown';
 
 export const SubagentActionsContext=createContext({parentId:'',enabled:false});
@@ -38,6 +38,6 @@ function AgentDialog({parentId,agent,onClose}){
   {error&&<p role="alert" className="subagent-error">{error}</p>}{notice&&<p role="status" className="subagent-meta">{notice}</p>}
   <form className="snippet-form" onSubmit={event=>{event.preventDefault();request('send');}}><label>发送指令<textarea aria-label="子代理指令" value={text} maxLength={25000} onChange={event=>setText(event.target.value)} placeholder={running?'追加或调整任务…':'输入后启动下一轮任务…'}/></label><button type="submit" disabled={busy||!turn||!text.trim()}>{running?'追加指令':'发送并继续'}</button></form>
   <details className="subagent-log" open><summary>对话记录（{messages.length}）</summary>{messages.map(message=><div key={message.id}><small>{message.role==='user'?'指令':'子代理'}</small><Markdown text={message.text}/></div>)}</details>
-  <details className="subagent-log"><summary>工具记录（{tools.length}）</summary>{tools.map((item,index)=><details key={item.id||index}><summary>{item.command||item.tool||item.type} · {item.status}</summary>{toolSections(item).map(section=><div key={section.label}><strong>{section.label}</strong><pre>{section.text}</pre></div>)}</details>)}</details>
+  <details className="subagent-log"><summary>工具记录（{tools.length}）</summary>{tools.map((item,index)=><details key={item.id||index}><summary>{displayCommand(item.command)||item.tool||item.type} · {item.status}</summary>{toolSections(item).map(section=><div key={section.label}><strong>{section.label}</strong><pre>{section.text}</pre></div>)}</details>)}</details>
  </PreviewDialog>;
 }
