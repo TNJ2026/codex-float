@@ -19,6 +19,8 @@ pub fn initialize(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>
             self::window::install_menu(app)?;
         }
         app.manage(background::initialize(&window));
+        #[cfg(target_os = "windows")]
+        windows::caption::install(&window)?;
     }
     Ok(())
 }

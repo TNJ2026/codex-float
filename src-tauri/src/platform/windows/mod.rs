@@ -1,3 +1,5 @@
+pub(crate) mod caption;
+mod desktop_acrylic;
 pub(crate) mod background;
 mod custom_blur;
 pub(crate) mod process;

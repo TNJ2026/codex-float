@@ -20,6 +20,7 @@ test('editing earlier messages uses the owner edit API, guards stale history and
   if(cmd==='list_threads')return {threads:[{id:state.id,thread_name:'Test'}],currentThread:state.id};
   if(cmd==='connect_thread'){snapshot();return {connected:true};}
   if(cmd==='background_settings')return {mode:'custom-blur'};
+  if(cmd==='set_mini_mode')return args.compact;
   if(cmd==='read_usage')return {};
   if(cmd==='edit_sent_message'){if(rejectEdit)throw 'owner unavailable';return new Promise(resolve=>{finishEdit=resolve;});}
   throw Error(`Unexpected command: ${cmd}`);
@@ -38,6 +39,17 @@ test('editing earlier messages uses the owner edit API, guards stale history and
   rejectEdit=false;await submit();assert.equal(document.querySelector('[aria-label="发送提示词"]').disabled,true);
   const sent=calls.filter(call=>call.cmd==='edit_sent_message').at(-1);assert.deepEqual(sent.args,{threadId:state.id,turnId:'t1',text:'revised'});assert.equal(calls.filter(call=>call.cmd==='send_prompt').length,0);
   await act(async()=>finishEdit({ok:true}));assert.equal(document.querySelector('.message-editor'),null);assert.equal(document.querySelector('#prompt-input').value,'unsent draft');
+  assert.equal(document.querySelector('.windows-window .titlebar'),null);
+  assert.equal(document.querySelector('.windows-window .section-label .window-actions'),null);
+  assert.equal(events.has('native-titlebar-action'),false);
+  await act(async()=>events.get('windows-caption-action')({payload:'settings'}));
+  assert.ok(document.querySelector('.settings-panel'));
+  await click(document.querySelector('[aria-label="关闭设置"]'));
+  await act(async()=>events.get('windows-caption-action')({payload:'mini'}));
+  assert.equal(document.querySelector('.chat-panel').hidden,true);
+  await click(document.querySelector('.mini-status'));
+  assert.equal(document.querySelector('.chat-panel').hidden,false);
+  assert.equal(document.querySelector('#prompt-input').value,'unsent draft');
   await click(edit());await type('[aria-label="编辑消息内容"]','another revision');
   const count=calls.filter(call=>call.cmd==='edit_sent_message').length;
   await act(async()=>{state={...state,turns:[...state.turns,{turnId:'t3',status:'completed',items:[{id:'u3',type:'userMessage',content:[{type:'text',text:'newly arrived'}]}]}]};snapshot();await new Promise(resolve=>setTimeout(resolve,150));});

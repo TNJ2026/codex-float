@@ -8,6 +8,7 @@ test('permission menu selects, saves, retains failures and discards stale chat r
  const dom=new JSDOM('<div id="root"></div><button id="outside">outside</button>',{url:'http://localhost'});
  const keys=['window','document','requestAnimationFrame','IS_REACT_ACT_ENVIRONMENT'],previous=keys.map(key=>globalThis[key]);
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,requestAnimationFrame:callback=>setTimeout(callback,0),IS_REACT_ACT_ENVIRONMENT:true});
+ document.documentElement.dataset.windowPlatform='windows';
  let threadId='one',conversation={cwd:'D:\\project',latestThreadSettings:{approvalPolicy:'on-request',sandboxPolicy:{type:'workspaceWrite',networkAccess:false}}},reject=false,defer=false,finish;
  const calls=[],applied=[],states=[];
  window.__TAURI_INTERNALS__={invoke:async(cmd,args)=>{calls.push({cmd,args});if(reject)throw 'permission denied';if(defer)return new Promise(resolve=>{finish=resolve;});return {threadSettings:{approvalPolicy:'never',sandboxPolicy:{type:'dangerFullAccess'}}};}};

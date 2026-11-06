@@ -6,6 +6,8 @@
 
 需要 Node.js 24、Rust stable MSVC、Microsoft C++ Build Tools、Windows SDK 和 WebView2。
 
+Windows 11 可选安装 [Windows App Runtime 1.8](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/downloads-archive) 以启用 `DesktopAcrylicController`。运行库不可用时，窗口会尝试使用 DWM 系统亚克力。
+
 ```powershell
 npm.cmd ci
 npm.cmd test

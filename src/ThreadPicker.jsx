@@ -67,6 +67,6 @@ function WebThreadPicker({threads, value, disabled, onChange}) {
 }
 
 export function ThreadPicker(props){
- const windowsMenu=usesNativeMenus()&&document.documentElement.dataset.nativeCaption==='true';
+ const windowsMenu=usesNativeMenus()&&document.documentElement.dataset.windowPlatform==='windows';
  return windowsMenu?<NativeThreadPicker {...props}/>:<WebThreadPicker {...props}/>;
 }

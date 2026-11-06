@@ -165,7 +165,7 @@ pub async fn background_settings(
     let (tx, rx) = tokio::sync::oneshot::channel();
     let handle = window.clone();
     window.run_on_main_thread(move || {
-        let _ = tx.send(serde_json::json!({"mode":mode,"amount":0,"adjustableBlur":false,"nativeWindowControls":true,"titlebarHeight":super::window::titlebar_height(&handle),"error":error}));
+        let _ = tx.send(serde_json::json!({"mode":mode,"amount":0,"adjustableBlur":false,"titlebarHeight":super::window::titlebar_height(&handle),"error":error}));
     }).map_err(|error|error.to_string())?;
     rx.await.map_err(|_| "窗口线程已关闭".to_string())
 }

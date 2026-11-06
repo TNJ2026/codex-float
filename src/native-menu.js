@@ -2,14 +2,14 @@ import {Menu} from '@tauri-apps/api/menu';
 import {LogicalPosition} from '@tauri-apps/api/dpi';
 
 export function usesNativeMenus(){
- const {nativeMenus,nativeWindowControls}=document.documentElement.dataset;
- return !!window.__TAURI_INTERNALS__&&(nativeMenus==='true'||nativeWindowControls==='true');
+ const {windowPlatform}=document.documentElement.dataset;
+ return !!window.__TAURI_INTERNALS__&&(windowPlatform==='windows'||windowPlatform==='macos');
 }
 
 // The system owns focus, keyboard navigation and dismissal while tracking the menu.
 export async function popupNativeMenu(anchor,items){
  const rect=anchor.getBoundingClientRect();
- const windows=document.documentElement.dataset.nativeCaption==='true';
+ const windows=document.documentElement.dataset.windowPlatform==='windows';
  const menu=await Menu.new({items:windows?windowsMenuItems(items):items});
  try{await menu.popup(new LogicalPosition(rect.left,windows?rect.bottom:rect.top));}
  finally{await menu.close();}

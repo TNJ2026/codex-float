@@ -17,6 +17,7 @@ test('speed metadata recognizes fast and priority without opting into ultrafast'
 test('speed picker saves selections, rolls back failures, toggles through slash requests and ignores stale chat responses',async()=>{
  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'}),keys=['window','document','IS_REACT_ACT_ENVIRONMENT'],previous=keys.map(key=>globalThis[key]);
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
+ document.documentElement.dataset.windowPlatform='windows';
  let threadId='one',tier='default',supported=true,reject=false,defer=false,finish,toggleRequest=0,model='m';
  const calls=[],applied=[],guards=[],errors=[];
  window.__TAURI_INTERNALS__={invoke:async(cmd,args)=>{calls.push({cmd,args});if(cmd==='read_model_options')return {settings:{model},models:[{model,serviceTiers:supported?[{id:'fast',name:'Fast'}]:[]}]};if(cmd==='update_speed_settings'){if(reject)throw 'not available';if(defer)return new Promise(resolve=>{finish=resolve;});return {threadSettings:{serviceTier:args.fast?'fast':'default'}};}throw Error(cmd);}};

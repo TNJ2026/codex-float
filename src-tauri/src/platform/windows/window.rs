@@ -1,4 +1,4 @@
-use super::{background, custom_blur};
+use super::{background, caption, custom_blur, desktop_acrylic};
 use tauri::{Manager, WebviewWindow, Window, WindowEvent};
 use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR};
 
@@ -26,25 +26,58 @@ pub fn prepare_compact(
     height: u32,
     scale: f64,
 ) -> tauri::Result<()> {
-    window.set_decorations(!compact)?;
-    custom_blur::set_compact(compact, width, height, scale);
-    if !custom_blur::active() {
+    if compact {
         if let Ok(hwnd) = window.hwnd() {
-            if compact {
-                background::disable_accent(hwnd.0);
-            }
+            desktop_acrylic::suspend(hwnd);
+        }
+    }
+    window.set_decorations(!compact)?;
+    if window
+        .state::<background::BackdropStatus>()
+        .title_bar_height
+        .is_some()
+    {
+        desktop_acrylic::set_window_frame(window.hwnd()?, !compact)
+            .map_err(|error| tauri::Error::Anyhow(error.into()))?;
+    }
+    custom_blur::set_compact(compact, width, height, scale);
+    if compact {
+        if let Ok(hwnd) = window.hwnd() {
+            background::disable_accent(hwnd.0);
+            custom_blur::set_visible(false);
         }
     }
     Ok(())
 }
 pub fn finish_restore(window: &WebviewWindow) {
-    if !custom_blur::active() {
-        if let Ok(hwnd) = window.hwnd() {
+    if let Ok(hwnd) = window.hwnd() {
+        let status = window.state::<background::BackdropStatus>();
+        if status.controller
+            && desktop_acrylic::install(
+                hwnd,
+                window
+                    .theme()
+                    .is_ok_and(|theme| theme == tauri::Theme::Dark),
+            )
+        {
+            caption::refresh(hwnd.0);
+            return;
+        }
+        if custom_blur::active() {
+            background::set_system_acrylic(hwnd.0, status.system_acrylic);
+            caption::refresh(hwnd.0);
+        } else {
             background::apply_acrylic(hwnd.0);
         }
     }
 }
 pub fn on_event(window: &Window, event: &WindowEvent) {
+    if let WindowEvent::ThemeChanged(theme) = event {
+        desktop_acrylic::update_theme(*theme == tauri::Theme::Dark);
+        if let Ok(hwnd) = window.hwnd() {
+            caption::refresh(hwnd.0);
+        }
+    }
     if let WindowEvent::Resized(size) = event {
         custom_blur::resize(
             size.width,
@@ -53,7 +86,11 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
         );
     }
     if matches!(event, WindowEvent::Destroyed) {
+        if let Ok(hwnd) = window.hwnd() {
+            desktop_acrylic::suspend(hwnd);
+        }
         custom_blur::clear();
+        desktop_acrylic::clear_custom_title_bar();
     }
     if matches!(event, WindowEvent::Focused(_))
         && !custom_blur::active()
@@ -63,6 +100,9 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
             .app_handle()
             .try_state::<background::BackdropStatus>()
         {
+            if status.controller {
+                return;
+            }
             if let Ok(hwnd) = window.hwnd() {
                 status.legacy.store(
                     background::apply_acrylic(hwnd.0),

@@ -55,4 +55,4 @@ function WebPermissionPicker({threadId,conversation,disabled,onApplied,onError,o
  </>;
 }
 
-export function PermissionPicker(props){return usesNativeMenus()?<NativePermissionPicker {...props}/>:<WebPermissionPicker {...props}/>;}
+export function PermissionPicker(props){return usesNativeMenus()&&document.documentElement.dataset.windowPlatform==='macos'?<NativePermissionPicker {...props}/>:<WebPermissionPicker {...props}/>;}

@@ -3,6 +3,10 @@ use tauri::Manager;
 
 pub fn run() {
     let app = tauri::Builder::default()
+        .append_invoke_initialization_script(format!(
+            "window.__CODEX_FLOAT_PLATFORM__ = '{}';",
+            std::env::consts::OS
+        ))
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
@@ -54,6 +58,8 @@ pub fn run() {
             services::predictions::cancel_prediction,
             services::subagent_actions::subagent_action,
             platform::background::background_settings,
+            #[cfg(target_os = "windows")]
+            platform::background::acrylic_opacity,
             services::settings_backdrop::settings_backdrop,
             platform::background::set_background_blur,
             services::mini_mode::set_mini_mode,

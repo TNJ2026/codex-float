@@ -19,6 +19,7 @@ test('composer keyboard completion sends structured context without a prompt and
  let rejectCommand=false;let timeoutSend=false;
  const file={kind:'file',label:'main.js',path:'C:/project/main.js'};
  const state={id:'context-test',cwd:'C:/project',turns:[],requests:[],latestModel:'gpt-test'};
+ window.__CODEX_FLOAT_PLATFORM__='macos';
  window.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener(){}};
  window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},convertFileSrc:path=>`asset://localhost/${encodeURIComponent(path)}`,transformCallback(callback){const id=callbacks.size+1;callbacks.set(id,callback);return id;},invoke:async(cmd,args)=>{
   calls.push({cmd,args});
@@ -26,7 +27,7 @@ test('composer keyboard completion sends structured context without a prompt and
   if(cmd==='plugin:event|unlisten'||cmd==='plugin:window|set_theme')return;
   if(cmd==='list_threads')return {threads:[{id:state.id,thread_name:'Test'}],currentThread:state.id};
   if(cmd==='connect_thread'){events.get('codex-stream')?.({payload:{conversationId:state.id,change:{type:'snapshot',revision:1,conversationState:state}}});return {connected:true};}
-  if(cmd==='background_settings')return {mode:'custom-blur',amount:30,nativeWindowControls:true};
+  if(cmd==='background_settings')return {mode:'custom-blur',amount:30,titlebarHeight:54};
   if(cmd==='set_background_blur')return args.amount;
   if(cmd==='read_usage')return {};
   if(cmd==='plugin:menu|new'){nativeItems=args.options.items;return [1,'native-test'];}
@@ -61,6 +62,9 @@ test('composer keyboard completion sends structured context without a prompt and
   assert.equal(document.querySelector('[aria-label="关闭面板"]'),null,'native window controls replace the HTML close button');
   assert.equal(document.querySelector('[aria-label="最小化为状态球"]'),null);
   assert.equal(document.querySelector('.titlebar'),null,'AppKit owns the entire Mac toolbar');
+  assert.equal(document.documentElement.style.getPropertyValue('--native-titlebar-height'),'54px');
+  await act(async()=>events.get('native-titlebar-layout')({payload:60}));
+  assert.equal(document.documentElement.style.getPropertyValue('--native-titlebar-height'),'60px');
   await act(async()=>events.get('native-titlebar-action')({payload:'settings'}));
   assert.ok(document.querySelector('.settings-panel'),'the native Settings action opens the existing panel');
   await act(async()=>document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));

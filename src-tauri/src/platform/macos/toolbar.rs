@@ -88,7 +88,6 @@ fn perform(app: &tauri::AppHandle, action: &str) {
                         }
                     }
                 });
-                let _ = app.emit("native-titlebar-pin", pinned);
             }
         }
     } else {

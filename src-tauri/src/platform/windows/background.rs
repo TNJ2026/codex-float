@@ -1,3 +1,4 @@
+use super::desktop_acrylic::Opacity;
 use std::{
     ffi::c_void,
     sync::{
@@ -8,35 +9,68 @@ use std::{
 use tauri::Manager;
 use windows_sys::Win32::{
     Foundation::HWND,
-    Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_SYSTEMBACKDROP_TYPE},
+    Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW, DWMWA_SYSTEMBACKDROP_TYPE,
+    },
     System::LibraryLoader::{GetModuleHandleA, GetProcAddress},
 };
 
 pub struct BackdropStatus {
     pub legacy: AtomicBool,
     pub custom: bool,
+    pub controller: bool,
+    pub title_bar_height: Option<f64>,
+    pub system_acrylic: bool,
     pub error: Option<String>,
     pub amount: Mutex<f32>,
 }
 
 pub fn initialize(window: &tauri::WebviewWindow) -> BackdropStatus {
     let mut custom = false;
+    let mut controller = false;
+    let mut title_bar_height = None;
     let mut enabled = false;
+    let mut system_acrylic = false;
     let mut error = None;
     if let (Ok(hwnd), Ok(size), Ok(scale)) =
         (window.hwnd(), window.inner_size(), window.scale_factor())
     {
+        disable_accent(hwnd.0);
+        let dark = window
+            .theme()
+            .is_ok_and(|theme| theme == tauri::Theme::Dark);
         match super::custom_blur::install(hwnd, size.width, size.height, scale) {
             Ok(()) => custom = true,
-            Err(cause) => {
-                error = Some(cause.to_string());
-                enabled = apply_acrylic(hwnd.0);
+            Err(cause) => error = Some(cause.to_string()),
+        }
+        if custom {
+            if super::desktop_acrylic::extend_custom_title_bar(hwnd, dark).is_ok() {
+                if let Ok(size) = window.inner_size() {
+                    super::custom_blur::resize(size.width, size.height, scale);
+                }
+                title_bar_height = Some(super::desktop_acrylic::title_bar_height(scale));
+            }
+        } else {
+            controller = super::desktop_acrylic::install(hwnd, dark);
+        }
+        if controller {
+            error = None;
+            title_bar_height = Some(super::desktop_acrylic::title_bar_height(scale));
+        } else if title_bar_height.is_none() {
+            system_acrylic = set_system_acrylic(hwnd.0, true);
+            if system_acrylic {
+                error = None;
+            } else if !custom {
+                enabled = set_accent(hwnd.0, 4, 0x01f9fbfa);
             }
         }
     }
     BackdropStatus {
         legacy: AtomicBool::new(enabled),
         custom,
+        controller,
+        title_bar_height,
+        system_acrylic,
         error,
         amount: Mutex::new(super::custom_blur::DEFAULT_AMOUNT),
     }
@@ -58,10 +92,26 @@ struct CompositionAttributeData {
 type SetCompositionAttribute =
     unsafe extern "system" fn(HWND, *mut CompositionAttributeData) -> i32;
 
+pub fn set_system_acrylic(hwnd: HWND, enabled: bool) -> bool {
+    let backdrop = if enabled {
+        DWMSBT_TRANSIENTWINDOW
+    } else {
+        DWMSBT_NONE
+    };
+    let applied = unsafe {
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_SYSTEMBACKDROP_TYPE as u32,
+            &backdrop as *const _ as _,
+            std::mem::size_of_val(&backdrop) as u32,
+        ) >= 0
+    };
+    super::custom_blur::set_visible(!enabled || !applied);
+    applied
+}
+
 fn set_accent(hwnd: HWND, state: u32, color: u32) -> bool {
-    // Use the native accent Acrylic path rather than the Windows 11 transient
-    // system backdrop, whose inactive appearance is managed by DWM.
-    // This API is dynamically resolved because it is not a documented Win32 contract.
+    // Older Windows builds use the accent policy when DWM lacks Desktop Acrylic.
     unsafe {
         let module = GetModuleHandleA(b"user32.dll\0".as_ptr());
         if module.is_null() {
@@ -72,13 +122,6 @@ fn set_accent(hwnd: HWND, state: u32, color: u32) -> bool {
             return false;
         };
         let set_attribute: SetCompositionAttribute = std::mem::transmute(address);
-        let none = 1u32; // DWMSBT_NONE. Unsupported on Windows 10; accent remains available.
-        let _ = DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_SYSTEMBACKDROP_TYPE as u32,
-            &none as *const _ as _,
-            std::mem::size_of_val(&none) as u32,
-        );
         let mut policy = AccentPolicy {
             state,
             flags: 0,
@@ -95,15 +138,27 @@ fn set_accent(hwnd: HWND, state: u32, color: u32) -> bool {
     }
 }
 pub fn apply_acrylic(hwnd: HWND) -> bool {
-    set_accent(hwnd, 4, 0x01f9fbfa)
+    set_system_acrylic(hwnd, true) || set_accent(hwnd, 4, 0x01f9fbfa)
 }
 pub fn disable_accent(hwnd: HWND) {
+    set_system_acrylic(hwnd, false);
     set_accent(hwnd, 0, 0);
 }
 
 #[tauri::command]
 pub fn background_settings(status: tauri::State<'_, BackdropStatus>) -> serde_json::Value {
-    serde_json::json!({"mode":if status.custom { "custom-blur" } else if status.legacy.load(Ordering::Relaxed) { "acrylic" } else { "blur" },"amount":*status.amount.lock().unwrap(),"adjustableBlur":status.custom,"nativeMenus":true,"nativeCaption":true,"error":status.error})
+    let mode = if status.controller {
+        "desktop-acrylic-controller"
+    } else if status.system_acrylic {
+        "desktop-acrylic"
+    } else if status.custom {
+        "custom-blur"
+    } else if status.legacy.load(Ordering::Relaxed) {
+        "acrylic"
+    } else {
+        "blur"
+    };
+    serde_json::json!({"mode":mode,"amount":*status.amount.lock().unwrap(),"adjustableBlur":status.custom&&!status.system_acrylic,"titlebarHeight":status.title_bar_height,"error":status.error})
 }
 
 fn validate_amount(amount: f32) -> Result<(), String> {
@@ -111,6 +166,20 @@ fn validate_amount(amount: f32) -> Result<(), String> {
         return Err("模糊程度必须在 0 到 60 之间".into());
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn acrylic_opacity(
+    window: tauri::WebviewWindow,
+    opacity: Option<Opacity>,
+) -> Result<Opacity, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    window
+        .run_on_main_thread(move || {
+            let _ = tx.send(super::desktop_acrylic::opacity_settings(opacity));
+        })
+        .map_err(|error| error.to_string())?;
+    rx.await.map_err(|_| "窗口线程已关闭".to_string())?
 }
 
 #[tauri::command]

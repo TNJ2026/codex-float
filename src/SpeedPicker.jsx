@@ -28,6 +28,16 @@ function WebSpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplied,on
   const key=event=>{if(event.key==='Escape'){setOpen(false);button.current?.focus();}};document.addEventListener('pointerdown',pointer);document.addEventListener('keydown',key);
   return()=>{generation.current++;window.removeEventListener('resize',place);document.removeEventListener('pointerdown',pointer);document.removeEventListener('keydown',key);};
  },[open,threadId,model]);
+ useEffect(()=>{
+  if(open&&!loading)popup.current?.querySelector('[aria-checked="true"]:not(:disabled), [role="menuitemradio"]:not(:disabled)')?.focus({preventScroll:true});
+ },[open,loading]);
+ function keyboard(event){
+  if(!['ArrowDown','ArrowUp','Home','End'].includes(event.key))return;
+  const rows=[...popup.current.querySelectorAll('[role="menuitemradio"]:not(:disabled)')];
+  if(!rows.length)return;
+  event.preventDefault();const index=rows.indexOf(document.activeElement);
+  rows[event.key==='Home'?0:event.key==='End'?rows.length-1:(index+(event.key==='ArrowDown'?1:-1)+rows.length)%rows.length]?.focus();
+ }
  async function save(wanted,toggle=false){
   if(lock.current||disabled)return;const target=threadId,expected=model;
   lock.current=true;setSaving(true);setError('');props.current.onSavingChange?.(true);
@@ -46,8 +56,8 @@ function WebSpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplied,on
  useEffect(()=>{if(toggleRequest&&!disabled)save(false,true);},[toggleRequest]);
  return <>
   <button type="button" ref={button} className={'speed-picker-button model-speed'+(fast||current==='ultrafast'?' fast':'')} aria-label="切换响应速度" aria-haspopup="menu" aria-expanded={open} disabled={disabled||saving} title={saving?'正在保存速度设置…':`${speedLabel(current)} · 点击切换响应速度`} onClick={()=>setOpen(value=>!value)}><Zap size={14} fill={fast||current==='ultrafast'?'currentColor':'none'}/></button>
-  {open&&createPortal(<div ref={popup} className="permission-popup speed-popup" style={position} role="menu" aria-label="响应速度"><button type="button" role="menuitemradio" aria-checked={['default','standard','auto'].includes(current)} disabled={saving||loading} onClick={()=>save(false)}><span><strong>标准速度</strong><small>常规响应速度与用量</small></span>{['default','standard','auto'].includes(current)&&<Check size={13}/>}</button><button type="button" role="menuitemradio" aria-checked={fast} disabled={saving||loading||!fastTier(entry)} onClick={()=>save(true)}><span><strong>快速模式</strong><small>{loading?'正在读取模型支持情况…':fastTier(entry)?'加快模型响应，更快消耗额度或点数':'当前模型或账号未提供快速档位'}</small></span>{fast&&<Check size={13}/>}</button><p className="permission-popup-note" role="status">{saving?'正在保存…':'选择后自动保存，下轮生效。'}</p>{error&&<p className="model-popup-error" role="alert">{error}</p>}</div>,document.body)}
+  {open&&createPortal(<div ref={popup} className="permission-popup speed-popup" style={position} role="menu" aria-label="响应速度" onKeyDown={keyboard}><button type="button" role="menuitemradio" aria-checked={['default','standard','auto'].includes(current)} disabled={saving||loading} onClick={()=>save(false)}><span><strong>标准速度</strong><small>常规响应速度与用量</small></span>{['default','standard','auto'].includes(current)&&<Check size={14}/>}</button><button type="button" role="menuitemradio" aria-checked={fast} disabled={saving||loading||!fastTier(entry)} onClick={()=>save(true)}><span><strong>快速模式</strong><small>{loading?'正在读取模型支持情况…':fastTier(entry)?'加快模型响应，更快消耗额度或点数':'当前模型或账号未提供快速档位'}</small></span>{fast&&<Check size={14}/>}</button><p className="permission-popup-note" role="status">{saving?'正在保存…':'选择后自动保存，下轮生效。'}</p>{error&&<p className="model-popup-error" role="alert">{error}</p>}</div>,document.body)}
  </>;
 }
 
-export function SpeedPicker(props){return usesNativeMenus()?<NativeSpeedPicker {...props}/>:<WebSpeedPicker {...props}/>;}
+export function SpeedPicker(props){return usesNativeMenus()&&document.documentElement.dataset.windowPlatform==='macos'?<NativeSpeedPicker {...props}/>:<WebSpeedPicker {...props}/>;}

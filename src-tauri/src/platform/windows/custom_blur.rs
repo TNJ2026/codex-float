@@ -174,6 +174,13 @@ pub fn install(hwnd: HWND, width: u32, height: u32, scale: f64) -> Result<()> {
 pub fn active() -> bool {
     BACKDROP.with(|state| state.borrow().is_some())
 }
+pub fn set_visible(visible: bool) {
+    BACKDROP.with(|state| {
+        if let Some(backdrop) = state.borrow().as_ref() {
+            let _ = backdrop.visual.SetIsVisible(visible);
+        }
+    });
+}
 pub fn set_amount(amount: f32) -> Result<()> {
     BACKDROP.with(|state| {
         let state = state.borrow();

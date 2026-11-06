@@ -14,7 +14,9 @@ test('settings popup changes and saves appearance, keeps native glass and closes
  let mode='custom-blur',dragCount=0;
  dom.window.__TAURI_INTERNALS__={transformCallback:()=>1,metadata:{currentWindow:{label:'main'}},invoke:async(cmd,args)=>{
   calls.push({cmd,args});
-  if(cmd==='background_settings')return {mode,amount:10};
+  if(cmd==='background_settings')return {mode,amount:10,adjustableBlur:mode==='custom-blur'};
+  if(cmd==='set_background_blur')return args.amount;
+  if(cmd==='acrylic_opacity')return args.opacity??{tintOpacity:.2,luminosityOpacity:.8};
   if(cmd==='settings_backdrop')return true;
 
  }};
@@ -41,7 +43,10 @@ test('settings popup changes and saves appearance, keeps native glass and closes
   assert.equal(document.activeElement,themeButton('dark'));
   assert.equal(document.querySelectorAll('.settings-theme-toggle button').length,2);
   for(const option of document.querySelectorAll('.theme-option')){assert.equal(option.textContent,'');assert.ok(option.querySelector('svg'));}
-  assert.equal(document.getElementById('appearance-blur'),null);
+  assert.equal(document.getElementById('appearance-blur').value,'10');
+  await change('appearance-blur','24');
+  assert.deepEqual(calls.filter(call=>call.cmd==='set_background_blur').map(call=>call.args.amount),[10,24]);
+  assert.equal(JSON.parse(localStorage.getItem('codex-float-appearance')).blur,24);
   // WebKit can blur the focused theme button with no next focus target when
   // clicking a button, label or slider inside the popup. It must stay open.
   await act(async()=>themeButton('dark').dispatchEvent(new dom.window.FocusEvent('focusout',{bubbles:true,relatedTarget:null})));
@@ -63,7 +68,7 @@ test('settings popup changes and saves appearance, keeps native glass and closes
   assert.equal(JSON.parse(localStorage.getItem('codex-float-appearance')).transparency,70);
   await act(async()=>document.getElementById('appearance-transparency').dispatchEvent(new dom.window.MouseEvent('mousedown',{bubbles:true})));
   assert.equal(dragCount,0);
-  assert.equal(calls.filter(call=>call.cmd==='set_background_blur').length,0);
+  assert.equal(calls.filter(call=>call.cmd==='set_background_blur').length,2);
   await act(async()=>document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
   assert.equal(document.querySelector('.settings-panel'),null);
   assert.equal(document.activeElement,gear());
@@ -76,6 +81,26 @@ test('settings popup changes and saves appearance, keeps native glass and closes
   await act(async()=>document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Tab',bubbles:true})));
   await act(async()=>document.getElementById('outside').dispatchEvent(new dom.window.FocusEvent('focusin',{bubbles:true})));
   assert.equal(document.querySelector('.settings-panel'),null,'keyboard focus moving outside closes settings');
+  await render('restored-custom-blur');
+  assert.equal(calls.filter(call=>call.cmd==='set_background_blur').at(-1).args.amount,24);
+  mode='desktop-acrylic';
+  await render('desktop-acrylic');
+  await click(gear());
+  assert.equal(document.getElementById('appearance-blur'),null);
+  assert.equal(document.getElementById('appearance-transparency'),null);
+  assert.match(document.querySelector('.settings-note').textContent,/系统亚克力/);
+  mode='desktop-acrylic-controller';
+  await render('acrylic-controller');
+  await click(gear());
+  assert.equal(document.getElementById('appearance-tintOpacity').value,'20');
+  assert.equal(document.getElementById('appearance-luminosityOpacity').value,'80');
+  await change('appearance-tintOpacity','35');
+  await change('appearance-luminosityOpacity','65');
+  assert.deepEqual(calls.filter(call=>call.cmd==='acrylic_opacity').at(-1).args.opacity,{tintOpacity:.35,luminosityOpacity:.65});
+  await render('restored-acrylic-controller');
+  await click(gear());
+  assert.equal(document.getElementById('appearance-tintOpacity').value,'35');
+  assert.equal(document.getElementById('appearance-luminosityOpacity').value,'65');
   mode='vibrancy';
   await render('vibrancy-fallback');
   await click(gear());
