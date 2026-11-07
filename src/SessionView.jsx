@@ -113,8 +113,8 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
  const selectedProjectTitle=selectedThread?.project_source==='workspace'?`${selectedProject}（根据工作目录匹配）`:selectedProject;
  const contextCwd=conversation?.cwd||conversation?.latestThreadSettings?.cwd||'';
  const contextRoots=[...new Set([contextCwd,...contextDraft.items.filter(item=>item.kind==='folder').map(item=>item.path)].filter(Boolean))].slice(0,8);
- const editDisabled=busy||sending||stopping||modelSaving||permissionSaving||speedSaving||commandSaving||editSaving||forkSaving||status!=='live'||selected!==boundRef.current;
- const prediction=useComposerPrediction({threadId:selected,conversation,enabled:predictionsEnabled,available:!editDisabled&&!compact&&!editing&&!forking&&!requests.length&&!contextOpen&&!uploads.preparing,draft,hasAttachments:!!(uploads.attachments.length||contextDraft.items.length)});
+ const editDisabled=sending||stopping||modelSaving||permissionSaving||speedSaving||commandSaving||editSaving||forkSaving||status!=='live'||selected!==boundRef.current;
+ const prediction=useComposerPrediction({threadId:selected,conversation,enabled:predictionsEnabled,available:!busy&&!editDisabled&&!compact&&!editing&&!forking&&!requests.length&&!contextOpen&&!uploads.preparing,draft,hasAttachments:!!(uploads.attachments.length||contextDraft.items.length)});
  function predictionKeys(e){
   const action=predictionKey(e,prediction.text);
   if(!action)return false;
@@ -122,17 +122,23 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
   e.preventDefault();commandCaret.current=prediction.text.length;setDraft(prediction.text);prediction.dismiss();closeSlash();closeContext();return true;
  }
  function beginEdit(message){
-  if(editDisabled||activityOf(live.current.state))return;
+  if(editDisabled)return;
   const current=messagesOf(live.current.state),original=current.find(item=>item.id===message.id&&item.turnId===message.turnId&&item.editable);
   if(!original||original.text!==message.text){setError('消息已变化，请同步后重试');return;}
   setEditing({...original,threadId:selected,historyKey:editHistoryKey(current)});
  }
  async function saveEdit(message,text){
-  if(editLock.current||editDisabled||activityOf(live.current.state))throw Error('请等待当前任务或设置保存结束后再编辑');
+  if(editLock.current||editDisabled||sendingRef.current||stoppingRef.current)throw Error('请等待当前操作结束后再编辑');
   if(selectedRef.current!==message.threadId||boundRef.current!==message.threadId)throw Error('聊天已切换，请重新打开编辑');
   if(editHistoryKey(messagesOf(live.current.state))!==message.historyKey)throw Error('聊天内容已变化，请关闭后重新打开编辑');
   editLock.current=true;setEditSaving(true);setError('');
   try{
+   const turnId=activeTurnId(live.current.state);
+   if(turnId)await stopAndConfirm(message.threadId,turnId);
+   if(selectedRef.current!==message.threadId||boundRef.current!==message.threadId||!live.current.state)
+    throw Error('聊天连接已变化，消息尚未重新发送');
+   if(activeTurnId(live.current.state)||editHistoryKey(messagesOf(live.current.state))!==message.historyKey)
+    throw Error('聊天状态已变化，消息尚未重新发送');
    await invoke('edit_sent_message',{threadId:message.threadId,turnId:message.turnId,text});
    if(selectedRef.current===message.threadId){setEditing(null);setFollow(true);}
   }catch(error){if(selectedRef.current===message.threadId)setError(String(error.message||error));throw error;}
@@ -147,7 +153,7 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
   setForking({...original,threadId:selected,requestId:crypto.randomUUID(),name:title.slice(0,80)+' · 分叉'});
  }
  async function createFork(message,name){
-  if(forkLock.current||editDisabled||selectedRef.current!==message.threadId||boundRef.current!==message.threadId)throw Error('聊天连接已变化，请重新打开分叉');
+  if(forkLock.current||busy||editDisabled||selectedRef.current!==message.threadId||boundRef.current!==message.threadId)throw Error('聊天连接已变化，请重新打开分叉');
   const state=live.current.state,original=messagesOf(state).find(item=>item.id===message.id&&item.turnId===message.turnId&&item.forkable);
   if(!original||original.text!==message.text)throw Error('消息已变化，请重新打开分叉');
   forkLock.current=true;setForkSaving(true);
@@ -328,18 +334,22 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
    if(!echoed&&selectedRef.current===threadId){setDraft(current=>current||submittedDraft);uploads.restore(submittedAttachments);contextDraft.restore(submittedContexts);setError(String(e));}
   }finally{sendingRef.current=false;setSending(false);}
  }
+ async function stopAndConfirm(threadId,turnId){
+  const connected=()=>selectedRef.current===threadId&&boundRef.current===threadId&&!!live.current.state;
+  await invoke('stop_task',{threadId,turnId});
+  const deadline=Date.now()+5000;
+  while(connected()&&turnIsRunning(live.current.state,turnId)&&Date.now()<deadline)
+   await new Promise(resolve=>setTimeout(resolve,100));
+  if(!connected())throw Error('聊天连接已变化，请检查主窗口中的任务状态');
+  if(turnIsRunning(live.current.state,turnId))throw Error('尚未收到任务停止确认，请检查主窗口');
+ }
  async function stopTask(){
-  if(stoppingRef.current||status!=='live'||selected!==boundRef.current)return;
+  if(editLock.current||stoppingRef.current||status!=='live'||selected!==boundRef.current)return;
   const threadId=boundRef.current,turnId=activeTurnId(live.current.state);
   if(!turnId)return;
   stoppingRef.current=true;setStopping(true);setError('');
-  try{
-   await invoke('stop_task',{threadId,turnId});
-   if(boundRef.current!==threadId)return;
-   const deadline=Date.now()+5000;
-   while(boundRef.current===threadId&&turnIsRunning(live.current.state,turnId)&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,100));
-   if(boundRef.current===threadId&&turnIsRunning(live.current.state,turnId))setError('已发送停止请求，尚未收到任务停止确认，请检查主窗口');
-  }catch(e){if(boundRef.current===threadId)setError('停止任务失败：'+String(e));}
+  try{await stopAndConfirm(threadId,turnId);}
+  catch(e){if(boundRef.current===threadId)setError('停止任务：'+String(e.message||e));}
   finally{stoppingRef.current=false;setStopping(false);}
  }
  const iconButton=(title,icon,onClick,cls='',pressed)=><button className={'icon-button '+cls} title={title} aria-label={title} aria-pressed={pressed} onClick={onClick}>{icon}</button>;
@@ -358,12 +368,12 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
   {(error||windowError)&&<div className="notice" role="alert"><Info size={16}/><span>{error||windowError}</span><button aria-label="关闭提示" onClick={error?()=>setError(''):onDismissWindowError}><X size={14}/></button></div>}
   <section className="messages" ref={scroll} onLoadCapture={e=>{if(e.target.tagName==='IMG'&&follow&&!compactRef.current&&scroll.current)scroll.current.scrollTop=scroll.current.scrollHeight;}} onScroll={()=>{if(compactRef.current)return;const e=scroll.current;setFollow(e.scrollHeight-e.scrollTop-e.clientHeight<85);}}>
    {!messages.length&&!requests.length?<div className="empty"><div className="empty-mark"><MessageSquare size={28}/></div><h2>{status==='connecting'?'正在同步对话':'让对话留在手边'}</h2><p>在 Codex 主窗口打开聊天，<br/>连接后即可在这里继续对话。</p></div>:<div className="history-divider"><span>与主窗口同步</span></div>}
-   <InteractionMessages key={boundRef.current} threadId={boundRef.current} requests={requests} messages={messages} MessageComponent={Message} disabled={status!=='live'||selected!==boundRef.current} onReply={replyInteraction} onEditMessage={beginEdit} editDisabled={editDisabled} onForkMessage={beginFork} forkDisabled={editDisabled}/>
+   <InteractionMessages key={boundRef.current} threadId={boundRef.current} requests={requests} messages={messages} MessageComponent={Message} disabled={status!=='live'||selected!==boundRef.current} onReply={replyInteraction} onEditMessage={beginEdit} editDisabled={editDisabled} onForkMessage={beginFork} forkDisabled={busy||editDisabled}/>
    {activity&&<div className="activity" role="status" aria-live="polite"><div className="typing"><span/><span/><span/><em>{activity.label}</em></div></div>}
   </section>
   {!follow&&iconButton('回到最新消息',<ArrowDown size={16}/>,()=>setFollow(true),'jump')}
   {forking&&<ForkMessageDialog key={forking.requestId} message={forking} onCreate={createFork} onOpen={openFork} onClose={()=>setForking(null)}/>}
-  {editing&&<MessageEditor key={`${editing.threadId}:${editing.id}`} message={editing} onSave={saveEdit} onClose={()=>setEditing(null)} disabled={editDisabled}/>}
+  {editing&&<MessageEditor key={`${editing.threadId}:${editing.id}`} message={editing} onSave={saveEdit} onClose={()=>setEditing(null)} disabled={editDisabled} running={!!stopTurnId}/>}
   {statusOpen&&<ChatStatus conversation={conversation} names={modelNames} onClose={()=>setStatusOpen(false)}/>}
   <footer className="composer-area">
    {sendWarning&&sendWarning.threadId===selected&&<p className="composer-command-status" role="status">消息启动确认超时，发送结果待确认；任务可能仍会继续，请检查消息记录，避免重复发送。</p>}

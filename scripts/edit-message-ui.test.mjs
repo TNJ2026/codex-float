@@ -10,7 +10,7 @@ test('editing earlier messages uses the owner edit API, guards stale history and
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,localStorage:dom.window.localStorage,requestAnimationFrame:callback=>setTimeout(callback,0),IS_REACT_ACT_ENVIRONMENT:true});
  dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
  const callbacks=new Map(),events=new Map(),calls=[];
- let finishEdit,rejectEdit=true,state={id:'00000000-0000-4000-8000-000000000001',turns:[{turnId:'t1',status:'completed',items:[{id:'u1',type:'userMessage',content:[{type:'text',text:'old message'}]},{id:'a1',type:'agentMessage',text:'old reply'}]},{turnId:'t2',status:'completed',items:[{id:'u2',type:'userMessage',content:[{type:'text',text:'new message'}]}]}],requests:[]};
+ let finishEdit,rejectEdit=true,rejectStop=true,state={id:'00000000-0000-4000-8000-000000000001',turns:[{turnId:'t1',status:'completed',items:[{id:'u1',type:'userMessage',content:[{type:'text',text:'old message'}]},{id:'a1',type:'agentMessage',text:'old reply'}]},{turnId:'t2',status:'completed',items:[{id:'u2',type:'userMessage',content:[{type:'text',text:'new message'}]}]}],requests:[]};
  const snapshot=()=>events.get('codex-stream')?.({payload:{conversationId:state.id,change:{type:'snapshot',revision:1,conversationState:state}}});
  window.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener(){}};
  window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},convertFileSrc:path=>path,transformCallback(callback){const id=callbacks.size+1;callbacks.set(id,callback);return id;},invoke:async(cmd,args)=>{
@@ -22,6 +22,7 @@ test('editing earlier messages uses the owner edit API, guards stale history and
   if(cmd==='background_settings')return {mode:'custom-blur'};
   if(cmd==='set_mini_mode')return args.compact;
   if(cmd==='read_usage')return {};
+  if(cmd==='stop_task'){if(rejectStop)throw 'stop unavailable';return;}
   if(cmd==='edit_sent_message'){if(rejectEdit)throw 'owner unavailable';return new Promise(resolve=>{finishEdit=resolve;});}
   throw Error(`Unexpected command: ${cmd}`);
  }};
@@ -55,6 +56,24 @@ test('editing earlier messages uses the owner edit API, guards stale history and
   await act(async()=>{state={...state,turns:[...state.turns,{turnId:'t3',status:'completed',items:[{id:'u3',type:'userMessage',content:[{type:'text',text:'newly arrived'}]}]}]};snapshot();await new Promise(resolve=>setTimeout(resolve,150));});
   await submit();assert.equal(calls.filter(call=>call.cmd==='edit_sent_message').length,count);assert.match(document.querySelector('.message-editor [role="alert"]').textContent,/聊天内容已变化/);
   await click(document.querySelector('[aria-label="关闭预览"]'));
-  await act(async()=>{state={...state,turns:[...state.turns,{turnId:'running',status:'inProgress',items:[]}]};snapshot();await new Promise(resolve=>setTimeout(resolve,150));});assert.equal(edit().disabled,true);
+  await act(async()=>{state={...state,turns:[...state.turns,{turnId:'running',status:'inProgress',items:[]}]};snapshot();await new Promise(resolve=>setTimeout(resolve,150));});assert.equal(edit().disabled,false);
+  await click(edit());await type('[aria-label="编辑消息内容"]','revision while running');
+  assert.equal(document.querySelector('.message-editor button[type="submit"]').textContent,'停止任务并重新发送');
+  await submit();
+  assert.equal(calls.filter(call=>call.cmd==='edit_sent_message').length,count);
+  assert.match(document.querySelector('.message-editor [role="alert"]').textContent,/stop unavailable/);
+  assert.equal(document.querySelector('[aria-label="编辑消息内容"]').value,'revision while running');
+  rejectStop=false;
+  await submit();
+  assert.deepEqual(calls.filter(call=>call.cmd==='stop_task').at(-1).args,{threadId:state.id,turnId:'running'});
+  assert.equal(calls.filter(call=>call.cmd==='edit_sent_message').length,count);
+  await act(async()=>{
+   state={...state,turns:state.turns.map(turn=>turn.turnId==='running'?{...turn,status:'interrupted'}:turn)};
+   snapshot();await new Promise(resolve=>setTimeout(resolve,200));
+  });
+  assert.deepEqual(calls.filter(call=>call.cmd==='edit_sent_message').at(-1).args,{threadId:state.id,turnId:'t1',text:'revision while running'});
+  await act(async()=>finishEdit({ok:true}));
+  assert.equal(document.querySelector('.message-editor'),null);
+  assert.equal(document.querySelector('#prompt-input').value,'unsent draft');
  }finally{if(module?.testRoot)await act(async()=>module.testRoot.unmount());await vite.close();dom.window.close();keys.forEach((key,index)=>{if(previous[index]===undefined)delete globalThis[key];else globalThis[key]=previous[index];});}
 });

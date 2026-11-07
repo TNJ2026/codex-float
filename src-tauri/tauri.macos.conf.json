@@ -30,6 +30,10 @@
     "macOS": {
       "minimumSystemVersion": "13.0",
       "signingIdentity": "-"
-    }
+    },
+    "icon": [
+      "icons/macos-32.png",
+      "icons/macos.icns"
+    ]
   }
 }

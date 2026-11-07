@@ -13,13 +13,13 @@ export function MessageActions({text,editable,editDisabled,onEdit,forkable,forkD
  if(!text&&!editable&&!forkable)return null;
  return <div className={'message-actions'+(persistentCopy?' final-reply-actions':'')}>
   {text&&<button type="button" data-copy-message aria-label={copied?'消息已复制':'复制消息'} title={copied?'已复制':'复制最终显示的回复'} onClick={copy}>{copied?<Check size={13}/>:<Copy size={13}/>}</button>}
-  {editable&&<button type="button" aria-label="编辑已发送消息" title={editDisabled?'任务进行中或设置正在保存，暂不能编辑':'编辑并重新发送'} disabled={editDisabled} onClick={onEdit}><Pencil size={13}/></button>}
+  {editable&&<button type="button" aria-label="编辑已发送消息" title={editDisabled?'当前操作尚未结束，暂不能编辑':'编辑并重新发送'} disabled={editDisabled} onClick={onEdit}><Pencil size={13}/></button>}
   {forkable&&<button type="button" aria-label="从此轮分叉" title={forkDisabled?'任务进行中或设置正在保存，暂不能分叉':'创建新聊天，包含此轮及之前的完整历史'} disabled={forkDisabled} onClick={onFork}><GitFork size={13}/></button>}
   {copied&&<small role="status">已复制</small>}{error&&<small className="message-action-error" role="alert">{error}</small>}
  </div>;
 }
 
-export function MessageEditor({message,onSave,onClose,disabled}){
+export function MessageEditor({message,onSave,onClose,disabled,running}){
  const [text,setText]=useState(message.text||''),[saving,setSaving]=useState(false),[error,setError]=useState(''),lock=useRef(false),mounted=useRef(true);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
  const unavailable=disabled||saving||!text.trim()||text===message.text;
@@ -30,9 +30,9 @@ export function MessageEditor({message,onSave,onClose,disabled}){
   finally{lock.current=false;if(mounted.current)setSaving(false);}
  }
  return <PreviewDialog title="编辑已发送消息" onClose={onClose} className="message-editor"><form onSubmit={submit}>
-  <p>保存后会从这条消息重新生成，后续消息和回复会被替换。原消息的附件将保留。</p>
+  <p>{running&&'提交后将先停止当前任务。已执行的操作不会撤销。'}保存后会从这条消息重新生成，后续消息和回复会被替换。原消息的附件将保留。</p>
   <textarea autoFocus aria-label="编辑消息内容" value={text} maxLength={100000} disabled={saving} onChange={event=>setText(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)&&!event.nativeEvent.isComposing){event.preventDefault();event.currentTarget.form.requestSubmit();}}}/>
   {error&&<p className="message-action-error" role="alert">{error}</p>}
-  <div className="message-editor-actions"><button type="button" onClick={onClose}>取消</button><button type="submit" disabled={unavailable}>{saving?'正在重新发送…':'保存并重新发送'}</button></div>
+  <div className="message-editor-actions"><button type="button" onClick={onClose}>取消</button><button type="submit" disabled={unavailable}>{saving?'正在重新发送…':running?'停止任务并重新发送':'保存并重新发送'}</button></div>
  </form></PreviewDialog>;
 }

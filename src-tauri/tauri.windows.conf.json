@@ -25,5 +25,11 @@
         "center": true
       }
     ]
+  },
+  "bundle": {
+    "icon": [
+      "icons/windows-32.png",
+      "icons/windows.ico"
+    ]
   }
 }
