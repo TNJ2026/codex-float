@@ -25,6 +25,7 @@ pub fn run() {
         .on_window_event(platform::on_window_event)
         .invoke_handler(tauri::generate_handler![
             codex::commands::connect_thread,
+            codex::commands::find_running_thread,
             codex::commands::send_prompt,
             codex::commands::reply_interaction,
             codex::index::list_threads,

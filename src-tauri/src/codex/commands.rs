@@ -2,6 +2,30 @@ use super::get_client;
 use serde_json::{json, Value};
 
 #[tauri::command]
+pub async fn find_running_thread(
+    app: tauri::AppHandle,
+    thread_ids: Vec<String>,
+) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let client = get_client(&app)?;
+        super::discovery::first_running(thread_ids, |id| {
+            let response = client.rpc(
+                "thread-owner-discovery",
+                json!({"hostId":"local","conversationId":id}),
+                1,
+                None,
+            )?;
+            response["handledByClientId"]
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "Missing chat owner in Codex response".into())
+        })
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
 pub async fn connect_thread(app: tauri::AppHandle, thread_id: String) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         uuid::Uuid::parse_str(&thread_id).map_err(|_| "聊天 ID 格式不正确".to_string())?;
@@ -13,8 +37,17 @@ pub async fn connect_thread(app: tauri::AppHandle, thread_id: String) -> Result<
                 1,
                 None,
             )
-            .map_err(|_| {
-                "未找到运行中的聊天，请先在 Codex 主窗口打开该聊天，再点击连接".to_string()
+            .map_err(|error| {
+                if error == "no-client-found" {
+                    crate::services::ui_language::text(
+                        "未找到运行中的聊天，请先在 Codex 主窗口打开该聊天，再点击连接",
+                        "This chat is not open in Codex. Open it in the main window, then reconnect.",
+                    ).to_string()
+                } else {
+                    format!("{}: {error}", crate::services::ui_language::text(
+                        "查找聊天运行实例失败", "Could not discover the chat owner",
+                    ))
+                }
             })?;
         let owner = r["handledByClientId"]
             .as_str()

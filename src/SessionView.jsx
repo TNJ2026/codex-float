@@ -268,7 +268,20 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
    off.push(await listen('codex-disconnected',({payload})=>{setStatus('offline');setError(payload);}));
    if(disposed){off.forEach(f=>f());return;}
    const r=await refresh();if(disposed||!r)return;
-   const id=r.currentThread||localStorage.getItem('codex-float-thread')||r.threads[0]?.id||'';
+   const saved=localStorage.getItem('codex-float-thread');
+   let id=r.currentThread||saved||r.threads[0]?.id||'';
+   // Standalone builds do not inherit CODEX_THREAD_ID from a parent Codex chat.
+   // Prefer a chat with a live owner over an arbitrary recent history entry.
+   if(!r.currentThread&&r.threads.length){
+    try{
+     const running=await invoke('find_running_thread',{threadIds:[...new Set([saved,...r.threads.map(thread=>thread.id)].filter(Boolean))]});
+     if(disposed||selectedRef.current)return;
+     if(running)id=running;
+    }catch(error){
+     if(disposed||selectedRef.current)return;
+     selectedRef.current=id;setSelected(id);setError(String(error));return;
+    }
+   }
    selectedRef.current=id;setSelected(id);await connect(id);
   })();
   return()=>{disposed=true;off.forEach(f=>f());clearTimeout(schedule.current);};
