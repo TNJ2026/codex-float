@@ -1,6 +1,41 @@
 use super::{background, caption, custom_blur, desktop_acrylic};
 use tauri::{Manager, WebviewWindow, Window, WindowEvent};
-use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR};
+use windows_sys::Win32::{
+    Foundation::{HWND, RECT},
+    Graphics::{
+        Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR},
+        Gdi::{CreateEllipticRgn, DeleteObject, GetWindowRgnBox, SetWindowRgn},
+    },
+};
+
+fn set_compact_region(hwnd: HWND, compact: bool, width: u32, height: u32) -> tauri::Result<()> {
+    unsafe {
+        let region = if compact {
+            let mut bounds = RECT::default();
+            if GetWindowRgnBox(hwnd, &mut bounds) != 0
+                && bounds.right == width as i32
+                && bounds.bottom == height as i32
+            {
+                return Ok(());
+            }
+            let region = CreateEllipticRgn(0, 0, width as i32, height as i32);
+            if region.is_null() {
+                return Err(std::io::Error::other("无法创建悬浮球圆形区域").into());
+            }
+            region
+        } else {
+            std::ptr::null_mut()
+        };
+        if SetWindowRgn(hwnd, region, 1) == 0 {
+            if !region.is_null() {
+                DeleteObject(region);
+            }
+            return Err(std::io::Error::other("无法更新悬浮球窗口区域").into());
+        }
+        // Windows owns the region after a successful SetWindowRgn.
+    }
+    Ok(())
+}
 
 pub fn border(window: &WebviewWindow, compact: bool) {
     if let Ok(hwnd) = window.hwnd() {
@@ -26,49 +61,23 @@ pub fn prepare_compact(
     height: u32,
     scale: f64,
 ) -> tauri::Result<()> {
-    if compact {
-        if let Ok(hwnd) = window.hwnd() {
-            desktop_acrylic::suspend(hwnd);
-        }
-    }
+    let hwnd = window.hwnd()?;
+    set_compact_region(hwnd.0, compact, width, height)?;
     window.set_decorations(!compact)?;
     if window
         .state::<background::BackdropStatus>()
         .title_bar_height
         .is_some()
     {
-        desktop_acrylic::set_window_frame(window.hwnd()?, !compact)
+        desktop_acrylic::set_window_frame(hwnd, !compact)
             .map_err(|error| tauri::Error::Anyhow(error.into()))?;
     }
     custom_blur::set_compact(compact, width, height, scale);
-    if compact {
-        if let Ok(hwnd) = window.hwnd() {
-            background::disable_accent(hwnd.0);
-            custom_blur::set_visible(false);
-        }
-    }
     Ok(())
 }
 pub fn finish_restore(window: &WebviewWindow) {
     if let Ok(hwnd) = window.hwnd() {
-        let status = window.state::<background::BackdropStatus>();
-        if status.controller
-            && desktop_acrylic::install(
-                hwnd,
-                window
-                    .theme()
-                    .is_ok_and(|theme| theme == tauri::Theme::Dark),
-            )
-        {
-            caption::refresh(hwnd.0);
-            return;
-        }
-        if custom_blur::active() {
-            background::set_system_acrylic(hwnd.0, status.system_acrylic);
-            caption::refresh(hwnd.0);
-        } else {
-            background::apply_acrylic(hwnd.0);
-        }
+        caption::refresh(hwnd.0);
     }
 }
 pub fn on_event(window: &Window, event: &WindowEvent) {
@@ -79,6 +88,14 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
         }
     }
     if let WindowEvent::Resized(size) = event {
+        if size.width > 0
+            && size.height > 0
+            && crate::services::mini_mode::is_compact(window.app_handle())
+        {
+            if let Ok(hwnd) = window.hwnd() {
+                let _ = set_compact_region(hwnd.0, true, size.width, size.height);
+            }
+        }
         custom_blur::resize(
             size.width,
             size.height,

@@ -23,7 +23,8 @@
   --text-project: #666;
   --text-disabled: #56616e;
   --window-bg: rgba(250,251,249,var(--background-alpha,.6));
-  --settings-bg: rgba(250,251,249,.8);
+  --settings-bg-rgb: 250,251,249;
+  --settings-bg: rgba(var(--settings-bg-rgb),.8);
   --window-border: rgba(255,255,255,.6);
   --hover-fill: rgba(0,0,0,.09);
   --pressed-fill: rgba(0,0,0,.16);
@@ -72,7 +73,8 @@
   --stroke: rgba(255,255,255,.18);
   --stroke-strong: rgba(255,255,255,.36);
   --window-bg: rgba(18,20,24,var(--background-alpha,.6));
-  --settings-bg: rgba(18,20,24,.8);
+  --settings-bg-rgb: 18,20,24;
+  --settings-bg: rgba(var(--settings-bg-rgb),.8);
   --window-border: rgba(255,255,255,.2);
   --control: rgba(44,48,55,.4);
   --control-hover: rgba(64,69,77,.65);

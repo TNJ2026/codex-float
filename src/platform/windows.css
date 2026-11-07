@@ -2,6 +2,7 @@
 .windows-window > .chat-panel { display:flex; flex-direction:column; height:100%; min-height:0; }
 .windows-window > .chat-panel[hidden] { display:none; }
 .windows-window.compact { border:0; border-radius:0; background:transparent; overflow:visible; }
+.windows-window.compact .mini-status { background: var(--window-bg); }
 .windows-window.compact .mini-frame { fill: transparent; }
 .windows-window.compact .mini-status svg { filter: drop-shadow(0 0 1px #000); }
 @media (forced-colors: active) {
@@ -10,6 +11,7 @@
 :root[data-window-platform="windows"] .windows-window { border: 0; border-radius: 0; }
 @media (forced-colors: none) {
   :root:is([data-native-background="desktop-acrylic"], [data-native-background="desktop-acrylic-controller"]) .windows-window { background: transparent; }
+  :root:is([data-native-background="desktop-acrylic"], [data-native-background="desktop-acrylic-controller"]) .windows-window.compact .mini-status { background: transparent; }
   :root[data-native-background="custom-blur"] .windows-window:not(.compact) { isolation: isolate; }
   :root[data-native-background="custom-blur"] .windows-window:not(.compact)::before {
     content: "";
@@ -25,6 +27,21 @@
 .windows-window .browser-brand img { width: 16px; height: 16px; filter: var(--brand-filter); }
 .windows-window .browser-brand .settings-control { margin-left: auto; }
 .windows-window .settings-button[hidden] { display: none; }
+@media (forced-colors: none) {
+  :root[data-window-platform="windows"] :is(
+    .settings-panel,
+    .model-settings-popup,
+    .permission-popup,
+    .context-picker,
+    .file-preview[open],
+    .mcp-app-card.expanded,
+    .rich-preview.expanded
+  ) {
+    background: rgba(var(--settings-bg-rgb), .7);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+  }
+}
 .windows-titlebar { display: flex; align-items: center; gap: 8px; padding: 0 12px; height: var(--windows-titlebar-height); flex: none; font-size: 12px; pointer-events: none; user-select: none; }
 .windows-titlebar img { width: 16px; height: 16px; filter: var(--brand-filter); }
 .windows-window > .chat-panel > .settings-control > .settings-panel { top: calc(8px + var(--windows-titlebar-height)); max-height: calc(100vh - 16px - var(--windows-titlebar-height)); overflow-y: auto; }
