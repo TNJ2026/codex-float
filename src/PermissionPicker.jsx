@@ -1,14 +1,16 @@
-import {usesNativeMenus} from './native-menu';
-import {NativePermissionPicker} from './NativePickers';
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {invoke} from '@tauri-apps/api/core';
 import {Check,ChevronDown} from 'lucide-react';
+import {useSettingsGlass} from './useSettingsGlass';
 import {permissionOptions,permissionPreset} from './permissions';
 
-function WebPermissionPicker({threadId,conversation,disabled,onApplied,onError,onSavingChange,openRequest}){
+export function PermissionPicker({threadId,conversation,disabled,onApplied,onError,onSavingChange,openRequest}){
  const [open,setOpen]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[position,setPosition]=useState({});
  const button=useRef(),popup=useRef(),scope=useRef(threadId),lock=useRef(false),openRef=useRef(false),callbacks=useRef({});
+ const macOS=document.documentElement.dataset.windowPlatform==='macos';
+ const mode=macOS?document.documentElement.dataset.nativeBackground:undefined;
+ const nativeGlass=useSettingsGlass(popup,open&&!!position.width,mode);
  scope.current=threadId;openRef.current=open;callbacks.current={onApplied,onError,onSavingChange};
  const selected=permissionPreset(conversation),label=permissionOptions.find(option=>option.id===selected)?.label||'自定义权限';
  useEffect(()=>{setOpen(false);setError('');},[threadId]);
@@ -26,8 +28,10 @@ function WebPermissionPicker({threadId,conversation,disabled,onApplied,onError,o
   const frame=requestAnimationFrame(()=>popup.current?.querySelector('[aria-checked="true"], [role="menuitemradio"]')?.focus({preventScroll:true}));
   const pointer=event=>{if(!popup.current?.contains(event.target)&&!button.current?.contains(event.target))setOpen(false);};
   const key=event=>{if(event.key==='Escape'){event.preventDefault();setOpen(false);button.current?.focus();}};
+  const focus=event=>{if(event.target.closest?.('.settings-panel'))setOpen(false);};
+  document.addEventListener('focusin',focus);
   document.addEventListener('pointerdown',pointer);document.addEventListener('keydown',key);
-  return()=>{if(typeof cancelAnimationFrame!=='undefined')cancelAnimationFrame(frame);window.removeEventListener('resize',place);observer?.disconnect();document.removeEventListener('pointerdown',pointer);document.removeEventListener('keydown',key);};
+  return()=>{if(typeof cancelAnimationFrame!=='undefined')cancelAnimationFrame(frame);window.removeEventListener('resize',place);observer?.disconnect();document.removeEventListener('focusin',focus);document.removeEventListener('pointerdown',pointer);document.removeEventListener('keydown',key);};
  },[open,threadId]);
  async function save(preset){
   if(lock.current||disabled)return;
@@ -47,12 +51,10 @@ function WebPermissionPicker({threadId,conversation,disabled,onApplied,onError,o
  }
  return <>
   <button type="button" ref={button} className="permission-picker-button" data-permission={selected} aria-label="修改权限" aria-haspopup="menu" aria-expanded={open} aria-controls={open?'permission-settings-popup':undefined} disabled={disabled||saving} title={saving?'正在保存权限…':`${label} · 点击修改权限`} onClick={()=>{setError('');setOpen(value=>!value);}}><span>{saving?'保存中':label}</span><ChevronDown size={10}/></button>
-  {open&&createPortal(<div ref={popup} id="permission-settings-popup" className="permission-popup" style={position} role="menu" aria-label="聊天权限" aria-busy={saving} onKeyDown={keyboard}>
+  {open&&createPortal(<div ref={popup} id="permission-settings-popup" className="permission-popup" data-native-glass={nativeGlass||undefined} style={position} role="menu" aria-label="聊天权限" aria-busy={saving} onKeyDown={keyboard}>
    {permissionOptions.map(option=><button type="button" role="menuitemradio" aria-checked={selected===option.id} key={option.id} data-permission={option.id} disabled={saving} onClick={()=>save(option.id)}><span><strong>{option.label}</strong><small>{option.description}</small></span>{selected===option.id&&<Check size={14}/>}</button>)}
    {error&&<p className="model-popup-error" role="alert">{error}</p>}
    <p className="permission-popup-note" role="status">{saving?'正在保存…':'选择后自动保存，下轮生效。'}</p>
   </div>,document.body)}
  </>;
 }
-
-export function PermissionPicker(props){return usesNativeMenus()&&document.documentElement.dataset.windowPlatform==='macos'?<NativePermissionPicker {...props}/>:<WebPermissionPicker {...props}/>;}

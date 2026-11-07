@@ -12,7 +12,8 @@
 :root[data-window-platform="macos"] .settings-panel { top: calc(var(--native-titlebar-height,52px) + 8px); }
 .macos-window .settings-control[data-native-toolbar="true"] { position: static; height: 0; min-height: 0; flex: none; }
 .macos-window .settings-button[hidden] { display: none; }
-:root[data-window-platform="macos"] .thread-selector { border-radius: 9px; }
+:root[data-window-platform="macos"] .thread-selector,
+:root[data-window-platform="macos"] .sync-button { border-radius: 9px; }
 :root[data-window-platform="macos"] .thread-popup { top: calc(100% + 6px); padding: 6px; border-radius: 12px; }
 :root[data-window-platform="macos"] .thread-option { border-radius: 6px; }
 :root[data-window-platform="macos"] { --dialog-top: calc(var(--native-titlebar-height, 52px) + 8px); }

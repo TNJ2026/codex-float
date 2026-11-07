@@ -4,6 +4,7 @@ import {Plus,X,File,Folder,Code,Globe,Monitor,Cpu,Blocks,RefreshCw,MessageSquare
 import {browserReadStatus} from './browser-settings';
 import {readBrowserContexts,subscribeBrowserContexts,updateBrowserContexts} from './browser-context';
 import {PreviewDialog} from './PreviewDialog';
+import {useSettingsGlass} from './useSettingsGlass';
 import {contextKey,contextLabels,contextMatches,mergeContexts} from './context';
 
 const icons={file:File,folder:Folder,snippet:Code,browser:Globe,ide:Monitor,skill:Cpu,plugin:Blocks,thread:MessageSquare};
@@ -50,6 +51,8 @@ export function ContextPicker({scope,cwd,roots=[],mention,open,onClose,onAdd,onE
  const root=useRef(),generation=useRef(0),catalogGeneration=useRef(0),scopeRef=useRef(scope),cachedCatalog=useRef(null),onAddRef=useRef(onAdd),onErrorRef=useRef(onError);
  scopeRef.current=scope;onAddRef.current=onAdd;onErrorRef.current=onError;
  const visible=open||!!mention;
+ const mode=document.documentElement.dataset.windowPlatform==='macos'?document.documentElement.dataset.nativeBackground:undefined;
+ const nativeGlass=useSettingsGlass(root,visible&&!snippet&&!browserEditor,mode);
  const activeQuery=mention?mention.query:query;
  const activeCategory=mention?(mention.trigger==='$'?'skill':category==='file'?'all':category):category;
  const rootsKey=JSON.stringify(roots.length?roots:cwd?[cwd]:[]);
@@ -68,8 +71,9 @@ export function ContextPicker({scope,cwd,roots=[],mention,open,onClose,onAdd,onE
   if(!visible)return;
   const onPointer=event=>{if(!root.current?.contains(event.target)&&!event.target.closest('[aria-label="添加上下文"],#prompt-input'))onClose();};
   const onKey=event=>{if(event.key==='Escape'){event.preventDefault();onClose();}};
-  document.addEventListener('pointerdown',onPointer);document.addEventListener('keydown',onKey);
-  return()=>{document.removeEventListener('pointerdown',onPointer);document.removeEventListener('keydown',onKey);};
+  const onFocus=event=>{if(event.target.closest?.('.settings-panel'))onClose();};
+  document.addEventListener('focusin',onFocus);document.addEventListener('pointerdown',onPointer);document.addEventListener('keydown',onKey);
+  return()=>{document.removeEventListener('focusin',onFocus);document.removeEventListener('pointerdown',onPointer);document.removeEventListener('keydown',onKey);};
  },[visible,onClose]);
  useEffect(()=>{
   if(!visible||!['all','skill','plugin'].includes(activeCategory)||cachedCatalog.current===cwd)return;
@@ -127,21 +131,19 @@ export function ContextPicker({scope,cwd,roots=[],mention,open,onClose,onAdd,onE
  useEffect(()=>{root.current?.querySelector(`[data-context-index="${activeIndex}"]`)?.scrollIntoView?.({block:'nearest'});},[activeIndex]);
  useEffect(()=>{onRows?.(visible?rows:[]);},[visible,rows,onRows]);
  useEffect(()=>{if(onSelectRef)onSelectRef.current=index=>{if(rows[index])add([rows[index]]);};return()=>{if(onSelectRef)onSelectRef.current=null;};},[rows,add,onSelectRef]);
- async function pick(directory){const target=scopeRef.current;setLoading(true);try{const items=await invoke('pick_context_paths',{directory});if(target===scopeRef.current&&items.length)add(items);}catch(error){if(target===scopeRef.current)setError(String(error));}finally{if(target===scopeRef.current)setLoading(false);}}
  const refresh=()=>{cachedCatalog.current=null;setRevision(value=>value+1);};
  return <>
-  {visible&&<div className="context-picker" role="dialog" aria-label="添加上下文" ref={root}>
+  {visible&&<div className="context-picker" data-native-glass={nativeGlass||undefined} role="dialog" aria-label="添加上下文" ref={root}>
    <div className="context-picker-heading"><strong>{mention?.trigger==='$'?'选择技能':mention?'选择上下文':'添加上下文'}</strong><button type="button" aria-label="刷新上下文" onClick={refresh}><RefreshCw size={13}/></button><button type="button" aria-label="关闭上下文菜单" onClick={onClose}><X size={14}/></button></div>
    {mention?.trigger!=='$'&&<div className="context-categories" aria-label="上下文类型">{Object.entries(contextLabels).map(([kind,name])=><button key={kind} type="button" aria-pressed={category===kind} onClick={()=>{setError('');if(kind==='snippet')setSnippet(true);else{setQuery('');setCategory(kind);}}}>{name}</button>)}</div>}
    {!mention&&<input className="context-search" aria-label="搜索上下文" placeholder="搜索名称或路径…" value={query} onChange={event=>setQuery(event.target.value)}/>}
-   {mention?.trigger!=='$'&&<div className="context-actions"><button type="button" onClick={()=>pick(false)}><File size={12}/>选择文件</button><button type="button" onClick={()=>pick(true)}><Folder size={12}/>选择目录</button><button type="button" onClick={()=>setSnippet(true)}><Code size={12}/>添加片段</button></div>}
    {activeCategory==='browser'&&<><p className="context-note">自动读取各窗口当前网页正文。添加后跟随该窗口切换的标签页，约每 2 秒更新；可在上下文标签上暂停。正文上限可在设置中调整；未加载的内容无法读取。</p><button type="button" className="context-manual" onClick={()=>setBrowserEditor(true)}>手动添加网页与选中文字</button></>}
    {activeCategory==='ide'&&<p className="context-note">从已连接的 Codex IDE 扩展读取当前文件、打开文件及选中代码。</p>}
    {activeCategory==='thread'&&<p className="context-note">选择其他对话作为参考，不会切换当前聊天。发送后由 Codex 按需读取对话内容。</p>}
    {error&&<p className="context-error" role="alert">{error}</p>}
    {(loading||catalogLoading)&&<p className="context-note" role="status">正在读取上下文…</p>}
    <div className="context-results" id="context-suggestions" role="listbox" aria-label="上下文候选项">{rows.map((item,index)=>{const Icon=icons[item.kind]||File;return <button type="button" id={`context-option-${index}`} role="option" aria-selected={!!mention&&index===activeIndex} key={contextKey(item)} data-context-index={index} onClick={()=>add([item])} title={[detail(item),item.content?.slice(0,700)].filter(Boolean).join('\n')}><Icon size={14}/><span><strong>{item.label}</strong><small>{detail(item)}</small></span><em>{item.kind==='browser'?browserReadStatus(item):contextLabels[item.kind]}</em></button>;})}</div>
-   {!rows.length&&!loading&&!catalogLoading&&!error&&<p className="context-note">{activeCategory==='browser'?'未读取到网页。请在 Chrome、Edge、Brave 或 Firefox 中打开网页后刷新，也可手动添加网址与选中文字。':activeCategory==='file'||activeCategory==='folder'||activeCategory==='all'?'没有匹配项，也可以使用上方按钮选择文件或目录。':'没有可添加的上下文。'}</p>}
+   {!rows.length&&!loading&&!catalogLoading&&!error&&<p className="context-note">{activeCategory==='browser'?'未读取到网页。请在 Chrome、Edge、Brave 或 Firefox 中打开网页后刷新，也可手动添加网址与选中文字。':activeCategory==='file'||activeCategory==='folder'||activeCategory==='all'?'没有匹配项。':'没有可添加的上下文。'}</p>}
    {catalog.warnings?.map(warning=><p className="context-note" key={warning}>{warning}</p>)}
   </div>}
   {snippet&&<SnippetEditor initial={initialSelection} onAdd={item=>add([item])} onClose={()=>setSnippet(false)}/>}

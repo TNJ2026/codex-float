@@ -30,26 +30,9 @@ for(const platform of ['macOS','Windows'])test(`${platform} menus save selection
  let root;
  try{
   const {createRoot}=await import('react-dom/client');
-  const {PermissionPicker}=await vite.ssrLoadModule('/src/PermissionPicker.jsx');
-  const {SpeedPicker}=await vite.ssrLoadModule('/src/SpeedPicker.jsx');
   const {ThreadPicker}=await vite.ssrLoadModule('/src/ThreadPicker.jsx');
   root=createRoot(document.getElementById('root'));
-  const props=()=>({threadId,model,effort,onApplied:(...args)=>applied.push(args),onError:error=>errors.push(error),onSavingChange:state=>saving.push(state)});
-  const render=Component=>act(async()=>root.render(React.createElement(Component,props())));
   const click=()=>act(async()=>document.querySelector('button').click());
-  if(platform==='macOS'){
-   await render(PermissionPicker);await click();
-   assert.equal(document.querySelector('[role="dialog"]'),null,'the operating system owns the popup');
-   const popup=calls.find(call=>call.cmd==='plugin:menu|popup');
-   assert.equal(popup.args.at.toJSON().Logical.y,40);
-   assert.equal(calls.find(call=>call.cmd==='update_permission_settings').args.preset,'read-only');
-   assert.deepEqual(saving,[true,false]);assert.equal(applied.length,1);
-   choose=null;await click();assert.equal(applied.length,1,'dismissal does not save');
-   fail=true;choose='只读';await click();assert.match(errors.at(-1),/save rejected/);assert.equal(saving.at(-1),false);fail=false;
-   hold=true;await click();threadId='two';await render(PermissionPicker);
-   await act(async()=>finishPopup());assert.equal(applied.length,1,'selection made for an old chat is discarded');hold=false;
-   choose='快速模式';await render(SpeedPicker);await click();assert.equal(calls.filter(call=>call.cmd==='update_speed_settings').at(-1).args.fast,true);
-  }
   const changed=[];choose='Other';
   dom.window.HTMLElement.prototype.scrollIntoView=()=>{};
   await act(async()=>root.render(React.createElement(ThreadPicker,{threads:[{id:'one',thread_name:'Current'},{id:'two',thread_name:'Other'}],value:'one',onChange:id=>changed.push(id)})));
@@ -63,7 +46,7 @@ for(const platform of ['macOS','Windows'])test(`${platform} menus save selection
    await act(async()=>list.querySelector('[aria-selected="false"]').click());
    assert.equal(document.querySelector('[role="listbox"]'),null);
   }else assert.equal(calls.find(call=>call.cmd==='plugin:menu|popup').args.at.toJSON().Logical.y,66);
-  assert.ok(calls.some(call=>call.cmd==='plugin:resources|close'),'native menu resources are released');
+  if(platform==='Windows')assert.ok(calls.some(call=>call.cmd==='plugin:resources|close'),'native menu resources are released');
   assert.deepEqual(changed,['two']);
  }finally{if(root)await act(async()=>root.unmount());await vite.close();dom.window.close();globals.forEach((key,index)=>{if(previous[index]===undefined)delete globalThis[key];else globalThis[key]=previous[index];});}
 });

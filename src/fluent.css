@@ -218,7 +218,7 @@ button { transition: background-color 110ms ease, border-color 110ms ease, color
 .file-preview > header { flex-shrink: 0; }
 .file-preview::backdrop { background: transparent; }
 .settings-panel, .thread-popup { background: var(--settings-bg); -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); }
-.settings-panel[data-native-glass="true"] { border-radius: 16px; border-color: transparent; background: var(--window-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.settings-panel[data-native-glass="true"], .permission-popup[data-native-glass="true"] { border-radius: 16px; border-color: transparent; box-shadow: none; background: var(--window-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* Keep the shell's single theme tint and native blur visible without chat text underneath. */
 :root:has(.file-preview[open]) .chat-panel > :not(.browser-brand) { visibility: hidden; }
 .file-preview header { display: flex; gap: 12px; align-items: center; padding: 12px; border-bottom: 1px solid var(--stroke); }
@@ -348,14 +348,14 @@ button { transition: background-color 110ms ease, border-color 110ms ease, color
 .context-chip > button, .context-picker-heading > button { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; padding: 0; border: 0; border-radius: 3px; background: transparent; color: var(--text-muted); }
 .context-chip > button:hover, .context-picker-heading > button:hover { background: var(--hover-fill); }
 .context-picker { position: absolute; bottom: calc(100% + 4px); left: 16px; right: 16px; z-index: 45; display: flex; flex-direction: column; max-height: min(470px,var(--context-max-height,calc(100vh - 210px))); min-height: 120px; padding: 10px; border: 1px solid var(--stroke); border-radius: 8px; background: var(--settings-bg); -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); box-shadow: 0 8px 24px var(--shadow); color: var(--text); font-size: 12px; }
+.context-picker[data-native-glass="true"] { border-radius: 16px; border-color: transparent; box-shadow: none; background: var(--window-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .context-picker-heading { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .context-picker-heading > strong { flex: 1; font-size: 12px; }
 .context-categories { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 8px; }
-.context-categories > button, .context-actions > button, .context-manual { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; border: 1px solid var(--stroke); border-radius: 4px; background: var(--control); color: var(--text-secondary); font-size: 11px; }
-.context-categories > button:hover, .context-actions > button:hover, .context-manual:hover { background: var(--control-hover); }
+.context-categories > button, .context-manual { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; border: 1px solid var(--stroke); border-radius: 4px; background: var(--control); color: var(--text-secondary); font-size: 11px; }
+.context-categories > button:hover, .context-manual:hover { background: var(--control-hover); }
 .context-categories > button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .context-search { flex-shrink: 0; width: 100%; border: 1px solid var(--stroke); border-radius: 4px; padding: 6px 8px; background: var(--control); color: var(--text); font: inherit; margin-bottom: 8px; }
-.context-actions { display: flex; flex-wrap: wrap; gap: 4px; padding-bottom: 7px; border-bottom: 1px solid var(--stroke); flex-shrink: 0; }
 .context-results { overflow-y: auto; min-height: 0; margin-top: 5px; scrollbar-width: thin; }
 .context-results > button { display: flex; align-items: center; width: 100%; gap: 7px; border: 0; border-radius: 4px; background: transparent; color: var(--text); text-align: left; padding: 7px 6px; }
 .context-results > button:hover, .context-results > button[aria-selected="true"] { background: var(--hover-fill); }
@@ -443,7 +443,7 @@ button { transition: background-color 110ms ease, border-color 110ms ease, color
 .send:disabled { color: var(--text-disabled); border-color: var(--stroke); background: var(--control); }
 .footer-meta { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; max-width: 100%; margin-left: auto; font-size: 12px; line-height: 16px; color: var(--text-secondary); }
 .footer-meta .model-name { font-size: 12px; }
-.model-summary { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.model-summary { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
 .model-speed { display: inline-flex; align-items: center; flex-shrink: 0; color: var(--text-muted); }
 .model-speed.fast { color: var(--accent); }
 .model-name { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }

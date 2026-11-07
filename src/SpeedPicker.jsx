@@ -1,14 +1,15 @@
-import {usesNativeMenus} from './native-menu';
-import {NativeSpeedPicker} from './NativePickers';
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {invoke} from '@tauri-apps/api/core';
 import {Check,Zap} from 'lucide-react';
+import {useSettingsGlass} from './useSettingsGlass';
 import {effectiveTier,fastTier,isFast,speedLabel} from './speed-settings';
 
-function WebSpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplied,onError,onSavingChange}){
+export function SpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplied,onError,onSavingChange}){
  const [open,setOpen]=useState(false),[entry,setEntry]=useState(null),[loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[position,setPosition]=useState({});
  const button=useRef(),popup=useRef(),scope=useRef(threadId),generation=useRef(0),lock=useRef(false),openRef=useRef(open),props=useRef({});
+ const mode=document.documentElement.dataset.windowPlatform==='macos'?document.documentElement.dataset.nativeBackground:undefined;
+ const nativeGlass=useSettingsGlass(popup,open&&!!position.width,mode);
  scope.current=threadId;openRef.current=open;props.current={onApplied,onError,onSavingChange,model,tier};
  const current=effectiveTier(tier,entry?.model===model?entry:null),fast=isFast(current);
  useEffect(()=>{generation.current++;setOpen(false);setEntry(null);setError('');setLoading(false);},[threadId,model]);
@@ -25,8 +26,10 @@ function WebSpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplied,on
   if(!open)return;catalog().catch(()=>{});
   const place=()=>{const rect=button.current?.getBoundingClientRect();if(!rect)return;const width=Math.min(270,window.innerWidth-24);setPosition({right:Math.max(12,Math.min(window.innerWidth-rect.right,window.innerWidth-width-12)),bottom:Math.max(12,window.innerHeight-rect.top+8),width});};place();window.addEventListener('resize',place);
   const pointer=event=>{if(!popup.current?.contains(event.target)&&!button.current?.contains(event.target))setOpen(false);};
+  const focus=event=>{if(event.target.closest?.('.settings-panel'))setOpen(false);};
+  document.addEventListener('focusin',focus);
   const key=event=>{if(event.key==='Escape'){setOpen(false);button.current?.focus();}};document.addEventListener('pointerdown',pointer);document.addEventListener('keydown',key);
-  return()=>{generation.current++;window.removeEventListener('resize',place);document.removeEventListener('pointerdown',pointer);document.removeEventListener('keydown',key);};
+  return()=>{generation.current++;document.removeEventListener('focusin',focus);window.removeEventListener('resize',place);document.removeEventListener('pointerdown',pointer);document.removeEventListener('keydown',key);};
  },[open,threadId,model]);
  useEffect(()=>{
   if(open&&!loading)popup.current?.querySelector('[aria-checked="true"]:not(:disabled), [role="menuitemradio"]:not(:disabled)')?.focus({preventScroll:true});
@@ -56,8 +59,6 @@ function WebSpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplied,on
  useEffect(()=>{if(toggleRequest&&!disabled)save(false,true);},[toggleRequest]);
  return <>
   <button type="button" ref={button} className={'speed-picker-button model-speed'+(fast||current==='ultrafast'?' fast':'')} aria-label="切换响应速度" aria-haspopup="menu" aria-expanded={open} disabled={disabled||saving} title={saving?'正在保存速度设置…':`${speedLabel(current)} · 点击切换响应速度`} onClick={()=>setOpen(value=>!value)}><Zap size={14} fill={fast||current==='ultrafast'?'currentColor':'none'}/></button>
-  {open&&createPortal(<div ref={popup} className="permission-popup speed-popup" style={position} role="menu" aria-label="响应速度" onKeyDown={keyboard}><button type="button" role="menuitemradio" aria-checked={['default','standard','auto'].includes(current)} disabled={saving||loading} onClick={()=>save(false)}><span><strong>标准速度</strong><small>常规响应速度与用量</small></span>{['default','standard','auto'].includes(current)&&<Check size={14}/>}</button><button type="button" role="menuitemradio" aria-checked={fast} disabled={saving||loading||!fastTier(entry)} onClick={()=>save(true)}><span><strong>快速模式</strong><small>{loading?'正在读取模型支持情况…':fastTier(entry)?'加快模型响应，更快消耗额度或点数':'当前模型或账号未提供快速档位'}</small></span>{fast&&<Check size={14}/>}</button><p className="permission-popup-note" role="status">{saving?'正在保存…':'选择后自动保存，下轮生效。'}</p>{error&&<p className="model-popup-error" role="alert">{error}</p>}</div>,document.body)}
+  {open&&createPortal(<div ref={popup} className="permission-popup speed-popup" data-native-glass={nativeGlass||undefined} style={position} role="menu" aria-label="响应速度" onKeyDown={keyboard}><button type="button" role="menuitemradio" aria-checked={['default','standard','auto'].includes(current)} disabled={saving||loading} onClick={()=>save(false)}><span><strong>标准速度</strong><small>常规响应速度与用量</small></span>{['default','standard','auto'].includes(current)&&<Check size={14}/>}</button><button type="button" role="menuitemradio" aria-checked={fast} disabled={saving||loading||!fastTier(entry)} onClick={()=>save(true)}><span><strong>快速模式</strong><small>{loading?'正在读取模型支持情况…':fastTier(entry)?'加快模型响应，更快消耗额度或点数':'当前模型或账号未提供快速档位'}</small></span>{fast&&<Check size={14}/>}</button><p className="permission-popup-note" role="status">{saving?'正在保存…':'选择后自动保存，下轮生效。'}</p>{error&&<p className="model-popup-error" role="alert">{error}</p>}</div>,document.body)}
  </>;
 }
-
-export function SpeedPicker(props){return usesNativeMenus()&&document.documentElement.dataset.windowPlatform==='macos'?<NativeSpeedPicker {...props}/>:<WebSpeedPicker {...props}/>;}

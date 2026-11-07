@@ -12,7 +12,6 @@ test('composer keyboard completion sends structured context without a prompt and
  localStorage.setItem('codex-float-predictions','true');
  dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
  const callbacks=new Map(),events=new Map(),calls=[];
- let nativeItems=[];
  let finishModelSave;
  let finishSpeedSave;
  let acceptSend=false;
@@ -30,7 +29,6 @@ test('composer keyboard completion sends structured context without a prompt and
   if(cmd==='background_settings')return {mode:'custom-blur',amount:30,titlebarHeight:54};
   if(cmd==='set_background_blur')return args.amount;
   if(cmd==='read_usage')return {};
-  if(cmd==='plugin:menu|new'){nativeItems=args.options.items;return [1,'native-test'];}
   if(cmd==='plugin:resources|close')return;
   if(cmd==='plugin:menu|popup')return;
   if(cmd==='search_context_files')return [file];
@@ -121,7 +119,7 @@ test('composer keyboard completion sends structured context without a prompt and
   await type('/test-skill');await key('Enter');assert.match(document.querySelector('.context-chip').textContent,/test-skill/);
   await act(async()=>document.querySelector('[aria-label="移除上下文 test-skill"]').click());
   const beforeShortcuts=calls.filter(call=>call.cmd==='send_prompt').length;
-  await type('/permissions');await key('Enter');assert.ok(nativeItems.some(item=>item.text==='完全访问'));
+  await type('/permissions');await key('Enter');assert.match(document.querySelector('#permission-settings-popup')?.textContent||'',/完全访问/);
   await key('Escape');
   await type('/model');await key('Enter');assert.ok(document.querySelector('#model-settings-popup'));
   await key('Escape');

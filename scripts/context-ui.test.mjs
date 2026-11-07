@@ -4,12 +4,12 @@ import React,{act} from 'react';
 import {JSDOM} from 'jsdom';
 import {createServer} from 'vite';
 
-test('context menu imports each source, removes chips, inserts snippets and ignores stale chat results',async()=>{
+test('context menu imports each source, removes chips, inserts snippets and clears the draft when switching chats',async()=>{
  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'});
  const globals=['window','document','IS_REACT_ACT_ENVIRONMENT'],previous=globals.map(key=>globalThis[key]);
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
  dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
- let api,scope='one',failIde=false,finishPick,rows=[],selected,mention=null;
+ let api,scope='one',failIde=false,rows=[],selected,mention=null;
  const errors=[],calls=[],selectRef={current:null};
  const file={kind:'file',label:'main.js',path:'C:/project/main.js'},folder={kind:'folder',label:'src',path:'C:/project/src'},skill={kind:'skill',label:'test-skill',path:'C:/skills/SKILL.md'},plugin={kind:'plugin',label:'Documents',path:'plugin://documents@test'},page={kind:'browser',label:'Example',url:'https://example.com',content:'selected'},ide={kind:'ide',label:'editor.js',path:'C:/project/editor.js'};
  window.__TAURI_INTERNALS__={invoke:async(cmd,args)=>{
@@ -19,7 +19,6 @@ test('context menu imports each source, removes chips, inserts snippets and igno
   if(cmd==='context_catalog')return {skills:[skill],plugins:[plugin],warnings:[]};
   if(cmd==='read_browser_contexts')return [page];
   if(cmd==='read_ide_context'){if(failIde)throw 'IDE unavailable';return [ide];}
-  if(cmd==='pick_context_paths')return finishPick?new Promise(resolve=>{finishPick=resolve;}):[args.directory?folder:file];
   throw Error(cmd);
  }};
  const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false,ws:false},appType:'custom'});
@@ -53,12 +52,11 @@ test('context menu imports each source, removes chips, inserts snippets and igno
   assert.equal(api.items.at(-1).kind,'snippet');assert.equal(api.items.at(-1).content,'const selected = true;');
   mention={trigger:'$',query:'test',start:0,end:5};await render();await act(settle);
   assert.equal(rows.length,1);await act(async()=>selectRef.current(0));assert.equal(selected[0].kind,'skill');
-  assert.equal(document.querySelector('.context-actions'),null);
   mention=null;await render();
-  finishPick=true;
-  await act(async()=>document.querySelector('.context-actions button').click());
-  scope='two';mention=null;await render();
-  await act(async()=>finishPick([file]));assert.equal(api.items.length,0);
+  assert.ok(document.querySelector('.context-search'));
+  assert.equal(document.querySelector('.context-actions'),null);
+  scope='two';await render();
+  assert.equal(api.items.length,0);
   assert.deepEqual(errors,[]);assert.ok(calls.some(call=>call.cmd==='read_browser_contexts'));
  }finally{if(root)await act(async()=>root.unmount());await vite.close();dom.window.close();globals.forEach((key,index)=>{if(previous[index]===undefined)delete globalThis[key];else globalThis[key]=previous[index];});}
 });
