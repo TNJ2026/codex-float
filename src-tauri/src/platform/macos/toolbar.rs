@@ -4,7 +4,8 @@ use objc2::{
 };
 use objc2_app_kit::{
     NSButton, NSButtonType, NSCellImagePosition, NSColor, NSImage, NSImageScaling,
-    NSImageSymbolConfiguration, NSImageSymbolScale, NSToolbar, NSToolbarDelegate,
+    NSImageSymbolConfiguration, NSImageSymbolScale, NSStackView, NSLayoutAttribute,
+    NSUserInterfaceLayoutOrientation, NSToolbar, NSToolbarDelegate,
     NSToolbarDisplayMode, NSToolbarItem, NSToolbarItemIdentifier, NSWindow, NSWindowStyleMask,
     NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
@@ -17,6 +18,7 @@ use crate::services::ui_language::text;
 
 struct Context {
     app: tauri::AppHandle,
+    actions: RefCell<Vec<Retained<NSToolbarItem>>>,
 }
 thread_local! {
     // NSToolbar's delegate and item targets are weak references. Retain them
@@ -27,9 +29,7 @@ thread_local! {
 fn identifiers() -> Retained<NSArray<NSString>> {
     NSArray::from_retained_slice(&[
         NSString::from_str("NSToolbarFlexibleSpaceItem"),
-        NSString::from_str("float.settings"),
-        NSString::from_str("float.pin"),
-        NSString::from_str("float.mini"),
+        NSString::from_str("float.actions"),
     ])
 }
 fn image(symbol: &str, label: &str) -> Option<Retained<NSImage>> {
@@ -81,8 +81,8 @@ fn perform(app: &tauri::AppHandle, action: &str) {
             let pinned = !window.is_always_on_top().unwrap_or(false);
             if window.set_always_on_top(pinned).is_ok() {
                 TOOLBAR.with(|slot| {
-                    if let Some((toolbar, _)) = slot.borrow().as_ref() {
-                        for item in toolbar.items() {
+                    if let Some((_, delegate)) = slot.borrow().as_ref() {
+                        for item in delegate.ivars().actions.borrow().iter() {
                             if item.itemIdentifier().to_string() == "float.pin" {
                                 pin_item(&item, pinned);
                             }
@@ -117,15 +117,34 @@ define_class!(
         fn open_settings(&self, _sender: &objc2::runtime::AnyObject) { perform(&self.ivars().app, "settings"); }
         #[unsafe(method(togglePin:))]
         fn toggle_pin(&self, _sender: &objc2::runtime::AnyObject) { perform(&self.ivars().app, "pin"); }
-        #[unsafe(method(activate:))]
-        fn activate(&self, sender: &NSToolbarItem) {
-            if let Some(action) = sender.itemIdentifier().to_string().strip_prefix("float.") { perform(&self.ivars().app, action); }
-        }
+        #[unsafe(method(toggleMini:))]
+        fn toggle_mini(&self, _sender: &objc2::runtime::AnyObject) { perform(&self.ivars().app, "mini"); }
     }
 );
 
 impl ToolbarDelegate {
     fn make_item(&self, identifier: &NSToolbarItemIdentifier) -> Option<Retained<NSToolbarItem>> {
+        if identifier.to_string() == "float.actions" {
+            // A single toolbar item prevents newer AppKit versions from adding
+            // glass group separators or extra padding between our action buttons.
+            let actions = ["float.settings", "float.pin", "float.mini"]
+                .into_iter()
+                .map(|id| self.make_item(&NSString::from_str(id)))
+                .collect::<Option<Vec<_>>>()?;
+            let views = actions.iter().map(|item| item.view()).collect::<Option<Vec<_>>>()?;
+            let stack = NSStackView::stackViewWithViews(&NSArray::from_retained_slice(&views), self.mtm());
+            stack.setOrientation(NSUserInterfaceLayoutOrientation::Horizontal);
+            stack.setAlignment(NSLayoutAttribute::CenterY);
+            stack.setSpacing(4.0);
+            stack.setTranslatesAutoresizingMaskIntoConstraints(false);
+            stack.widthAnchor().constraintEqualToConstant(92.0).setActive(true);
+            stack.heightAnchor().constraintEqualToConstant(28.0).setActive(true);
+            let item = NSToolbarItem::initWithItemIdentifier(NSToolbarItem::alloc(self.mtm()), identifier);
+            item.setBordered(false);
+            item.setView(Some(&stack));
+            self.ivars().actions.replace(actions);
+            return Some(item);
+        }
         let (label, symbol) = match identifier.to_string().as_str() {
             "float.settings" => ("设置", "gearshape"),
             "float.pin" => ("置顶", "pin"),
@@ -138,10 +157,9 @@ impl ToolbarDelegate {
         item.setToolTip(Some(&NSString::from_str(label)));
         item.setImage(image(symbol, label).as_deref());
         item.setBordered(false);
-        if matches!(
-            identifier.to_string().as_str(),
-            "float.pin" | "float.settings"
-        ) {
+        // Use identical custom button views for all three actions. Mixing
+        // these with a standard image toolbar item gives unequal center spacing.
+        {
             let button = NSButton::new(self.mtm());
             button.setTitle(&NSString::from_str(""));
             button.setButtonType(if identifier.to_string() == "float.pin" {
@@ -152,6 +170,7 @@ impl ToolbarDelegate {
             button.setImagePosition(NSCellImagePosition::ImageOnly);
             button.setBordered(false);
             button.setImageScaling(NSImageScaling::ScaleNone);
+            button.setImage(image(symbol, label).as_deref());
             button.setFrame(NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(28.0, 28.0)));
             // A frame is only an initial size. In the SDK 15 compatibility
             // layout AppKit otherwise shrinks these image-only custom views
@@ -191,7 +210,7 @@ impl ToolbarDelegate {
             } else if identifier.to_string() == "float.settings" {
                 sel!(openSettings:)
             } else {
-                sel!(activate:)
+                sel!(toggleMini:)
             }));
         }
         Some(item)
@@ -206,6 +225,7 @@ pub fn install(window: &WebviewWindow) -> Result<(), String> {
     }
     let object = ToolbarDelegate::alloc(mtm).set_ivars(Context {
         app: window.app_handle().clone(),
+        actions: RefCell::new(Vec::new()),
     });
     // SAFETY: NSObject init and Tauri's NSWindow are valid on the AppKit thread.
     unsafe {
@@ -314,8 +334,8 @@ pub fn install_menu(app: &tauri::App) -> tauri::Result<()> {
 
 pub fn refresh_language(window: &WebviewWindow) {
     TOOLBAR.with(|slot| {
-        if let Some((toolbar, _)) = slot.borrow().as_ref() {
-            for item in toolbar.items() {
+        if let Some((_, delegate)) = slot.borrow().as_ref() {
+            for item in delegate.ivars().actions.borrow().iter() {
                 let identifier = item.itemIdentifier().to_string();
                 if identifier == "float.pin" {
                     pin_item(&item, window.is_always_on_top().unwrap_or(false));
