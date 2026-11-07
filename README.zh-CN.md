@@ -1,5 +1,7 @@
 # Codex Float
 
+![Codex Float 蓝色玻璃图标与半透明悬浮聊天窗口](docs/images/readme-banner.png)
+
 [English](README.md) | 简体中文
 
 连接 Codex 桌面端已有本地聊天的窄幅置顶窗口，基于 Tauri、React 和 Rust 构建。

@@ -1,5 +1,7 @@
 # Codex Float
 
+![Codex Float — floating chat window with a glass app icon](docs/images/readme-banner.png)
+
 English | [简体中文](README.zh-CN.md)
 
 A compact, always-on-top chat window for your existing local chats in the Codex desktop app. Built with Tauri, React, and Rust.
