@@ -246,6 +246,7 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
   return false;
  }
  async function refresh(){try{const r=await invoke('list_threads');setThreads(r.threads);setModelNames(r.modelNames||{});return r;}catch(e){setError(String(e));}}
+ async function syncCurrentThread(){await refresh();await connect();}
  async function connect(id=selectedRef.current){
   if(!id||connecting.current)return;if(id!==boundRef.current)setOptimistic([]);connecting.current=true;boundRef.current=id;setStatus('connecting');setError('');live.current={state:null,revision:null};setConversation(null);
   try{await invoke('connect_thread',{threadId:id});setStatus('live');localStorage.setItem('codex-float-thread',id);return true;}catch(e){setStatus('offline');setError(String(e));return false;}finally{connecting.current=false;}
@@ -379,12 +380,12 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
   <section className="connection">
    <div className="section-label"><label htmlFor="thread-picker">{t("当前聊天")}</label><span className="current-project" title={selectedProjectTitle}>{selectedProject}</span></div>
    <div className="thread-row"><ThreadPicker threads={threads} value={selected} disabled={status==='connecting'||forkSaving} onChange={id=>{selectedRef.current=id;setSelected(id);setFollow(true);connect(id);}}/>
-    <button type="button" className={'sync-button '+status} disabled={status==='connecting'||!selected} title={status==='live'?t("已同步，点击重新同步当前聊天"):status==='connecting'?t("正在同步当前聊天…"):t("未同步，点击连接当前聊天")} aria-label={status==='live'?t("已同步，点击重新同步当前聊天"):status==='connecting'?t("正在同步当前聊天"):t("未同步，点击连接当前聊天")} onClick={async()=>{await refresh();await connect();}}><RefreshCw size={16} aria-hidden="true" className={status==='connecting'?'spin':''}/></button>
+    <button type="button" className={'sync-button '+status} disabled={status==='connecting'||!selected} title={status==='live'?t("已同步，点击重新同步当前聊天"):status==='connecting'?t("正在同步当前聊天…"):t("未同步，点击连接当前聊天")} aria-label={status==='live'?t("已同步，点击重新同步当前聊天"):status==='connecting'?t("正在同步当前聊天"):t("未同步，点击连接当前聊天")} onClick={syncCurrentThread}><RefreshCw size={16} aria-hidden="true" className={status==='connecting'?'spin':''}/></button>
    </div>
   </section>
   {(error||windowError)&&<div className="notice" role="alert"><Info size={16}/><span>{t(error||windowError)}</span><button aria-label={t("关闭提示")} onClick={error?()=>setError(''):onDismissWindowError}><X size={14}/></button></div>}
   <section className="messages" ref={scroll} onLoadCapture={e=>{if(e.target.tagName==='IMG'&&follow&&!compactRef.current&&scroll.current)scroll.current.scrollTop=scroll.current.scrollHeight;}} onScroll={()=>{if(compactRef.current)return;const e=scroll.current;setFollow(e.scrollHeight-e.scrollTop-e.clientHeight<85);}}>
-   {!messages.length&&!requests.length?<div className="empty"><div className="empty-mark"><MessageSquare size={28}/></div><h2>{status==='connecting'?t("正在同步对话"):t("让对话留在手边")}</h2><p>{t("在 Codex 主窗口打开聊天，")}<br/>{t("连接后即可在这里继续对话。")}</p></div>:<div className="history-divider"><span>{t("与主窗口同步")}</span></div>}
+   {!messages.length&&!requests.length?<div className="empty"><div className="empty-mark"><MessageSquare size={28}/></div><h2>{status==='connecting'?t("正在同步对话"):t("让对话留在手边")}</h2><p>{t("在 Codex 主窗口打开聊天，")}<br/>{t("连接后即可在这里继续对话。")}</p>{status!=='live'&&<button type="button" className="sync-button empty-sync-button" disabled={status==='connecting'||!selected} onClick={syncCurrentThread}><RefreshCw size={16} aria-hidden="true" className={status==='connecting'?'spin':''}/>{status==='connecting'?t("同步中"):t("同步聊天")}</button>}</div>:<div className="history-divider"><span>{t("与主窗口同步")}</span></div>}
    <InteractionMessages key={boundRef.current} threadId={boundRef.current} requests={requests} messages={messages} MessageComponent={Message} disabled={status!=='live'||selected!==boundRef.current} onReply={replyInteraction} onEditMessage={beginEdit} editDisabled={editDisabled} onForkMessage={beginFork} forkDisabled={busy||editDisabled}/>
    {activity&&<div className="activity" role="status" aria-live="polite"><div className="typing"><span/><span/><span/><em>{t(activity.label)}</em></div></div>}
   </section>

@@ -1,9 +1,9 @@
 CodexFloat 将 Codex 聊天放入轻量悬浮窗口，支持置顶、迷你状态球、中英文界面，以及玻璃质感背景。
 
-### v0.1.3 更新
+### v0.1.4 更新
 
-- macOS 标题栏的设置、置顶、悬浮球按钮统一使用原生按钮容器，保持等距排列。
-- 修复新版 AppKit 出现多余分隔线、按钮被挤入溢出菜单的问题，并兼容旧 SDK 构建。
+- 在未连接时的默认提示下方添加“同步聊天”按钮，与右上角按钮共用同步逻辑，支持同步中状态及中英文界面。
+- 新增 `doc/architecture.md`，介绍技术组件、应用架构、聊天同步、平台实现与构建发布流程。
 - macOS 继续仅提供 DMG 安装包；Windows 安装包和便携 ZIP 保持不变。
 
 ### 下载
@@ -24,7 +24,7 @@ Windows 安装包未使用商业代码签名；macOS App 使用本地签名，�
 
 CodexFloat brings your Codex chats into an always-on-top floating window with a mini status ball, Chinese/English UI, and a glass backdrop.
 
-v0.1.3 places all three macOS titlebar actions in one native container with equal spacing. This removes unwanted separators and toolbar overflow in newer AppKit while retaining compatibility with older SDK builds. macOS downloads remain DMG-only; Windows downloads are unchanged.
+v0.1.4 adds a Sync chat button below the disconnected-state instructions, sharing the existing sync action and loading state. It also adds component and architecture documentation in `doc/architecture.md`. macOS downloads remain DMG-only; Windows downloads are unchanged.
 
 Choose the Windows installer or portable ZIP, or the macOS DMG matching your Mac's architecture. The Codex desktop app must be installed and running. ChatGPT integration is currently disabled.
 

@@ -1,4 +1,5 @@
 export default {
+ '同步聊天':'Sync chat',
  '会话来源':'Conversation source',
  'ChatGPT 操作未完成':'The ChatGPT operation did not complete.',
  '手动同步':'Manual sync',

@@ -343,6 +343,7 @@ button { transition: background-color 110ms ease, border-color 110ms ease, color
 .empty-mark { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border: 1px solid var(--stroke); border-radius: 8px; background: var(--control-hover); color: var(--text-icon); }
 .empty h2 { font-size: 20px; line-height: 28px; font-weight: 600; margin: 16px 0 8px; }
 .empty p { font-size: 14px; line-height: 22px; color: var(--text-secondary); margin: 0; }
+.empty-sync-button { flex: none; width: auto; gap: 8px; margin-top: 16px; padding: 0 16px; color: var(--text); }
 .typing { display: flex; align-items: center; gap: 4px; padding: 4px 0 8px; }
 .typing > span { width: 4px; height: 4px; border-radius: 50%; background: var(--text-icon); animation: breathe 1.4s ease-in-out infinite; }
 .typing > span:nth-child(2) { animation-delay: .2s; }
