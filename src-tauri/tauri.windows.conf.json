@@ -27,6 +27,8 @@
     ]
   },
   "bundle": {
+    "active": true,
+    "targets": ["nsis"],
     "icon": [
       "icons/windows-32.png",
       "icons/windows.ico"

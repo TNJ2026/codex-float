@@ -40,26 +40,68 @@ jobs:
       - run: npm run build
       - name: Native tests (no live Codex session required)
         run: cargo test --locked --manifest-path src-tauri/Cargo.toml
-      - name: Build Windows executable
+      - name: Build Windows app and installer
         if: runner.os == 'Windows'
-        run: npm run tauri -- build --no-bundle
-      - name: Build experimental macOS app
+        run: npm run tauri -- build --bundles nsis
+      - name: Build macOS app and disk image
         if: runner.os == 'macOS'
-        run: npm run build:macos -- --bundles app
+        run: npm run build:macos -- --bundles app,dmg
+      - name: Package Windows downloads
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+          Copy-Item -LiteralPath src-tauri/target/release/codex-float.exe -Destination artifacts/CodexFloat-windows-x64.exe
+          Compress-Archive -LiteralPath artifacts/CodexFloat-windows-x64.exe -DestinationPath artifacts/CodexFloat-windows-x64-portable.zip
+          Remove-Item -LiteralPath artifacts/CodexFloat-windows-x64.exe
+          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe
+          if (@($installer).Count -ne 1) { throw 'Expected exactly one Windows installer' }
+          Copy-Item -LiteralPath $installer.FullName -Destination artifacts/CodexFloat-windows-x64-setup.exe
       - name: Preserve macOS app permissions in an archive
         if: runner.os == 'macOS'
         run: |
           mkdir -p artifacts
-          ditto -c -k --sequesterRsrc --keepParent "src-tauri/target/release/bundle/macos/Codex Float.app" "artifacts/${{ matrix.artifact }}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "src-tauri/target/release/bundle/macos/CodexFloat.app" "artifacts/${{ matrix.artifact }}.zip"
+          images=(src-tauri/target/release/bundle/dmg/*.dmg)
+          test "${#images[@]}" -eq 1
+          cp "${images[0]}" "artifacts/${{ matrix.artifact }}.dmg"
       - uses: actions/upload-artifact@v4
-        if: runner.os == 'Windows'
         with:
           name: ${{ matrix.artifact }}
-          path: src-tauri/target/release/codex-float.exe
+          path: artifacts/*
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: runner.os == 'macOS'
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: artifacts/*.zip
-          if-no-files-found: error
+          path: artifacts
+          merge-multiple: true
+      - name: Verify downloads and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=(
+            CodexFloat-windows-x64-portable.zip
+            CodexFloat-windows-x64-setup.exe
+            codex-float-macos-arm64.zip
+            codex-float-macos-arm64.dmg
+            codex-float-macos-x64.zip
+            codex-float-macos-x64.dmg
+          )
+          for file in "${expected[@]}"; do test -s "artifacts/$file"; done
+          (cd artifacts && sha256sum "${expected[@]}" > SHA256SUMS.txt)
+          gh release create "$RELEASE_TAG" artifacts/* --verify-tag --draft \
+            --title "CodexFloat $RELEASE_TAG" --notes-file .github/release-notes.md
+          gh release edit "$RELEASE_TAG" --draft=false --latest
