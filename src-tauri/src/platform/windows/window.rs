@@ -8,6 +8,11 @@ use windows_sys::Win32::{
     },
 };
 
+fn needs_compact_region(status: &background::BackdropStatus) -> bool {
+    // The custom compositor already clips its blur inside the antialiased SVG rim.
+    !status.custom || status.system_acrylic
+}
+
 fn set_compact_region(hwnd: HWND, compact: bool, width: u32, height: u32) -> tauri::Result<()> {
     unsafe {
         let region = if compact {
@@ -62,13 +67,12 @@ pub fn prepare_compact(
     scale: f64,
 ) -> tauri::Result<()> {
     let hwnd = window.hwnd()?;
-    set_compact_region(hwnd.0, compact, width, height)?;
+    let backdrop = window.state::<background::BackdropStatus>();
+    if needs_compact_region(&backdrop) {
+        set_compact_region(hwnd.0, compact, width, height)?;
+    }
     window.set_decorations(!compact)?;
-    if window
-        .state::<background::BackdropStatus>()
-        .title_bar_height
-        .is_some()
-    {
+    if backdrop.title_bar_height.is_some() {
         desktop_acrylic::set_window_frame(hwnd, !compact)
             .map_err(|error| tauri::Error::Anyhow(error.into()))?;
     }
@@ -91,6 +95,9 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
         if size.width > 0
             && size.height > 0
             && crate::services::mini_mode::is_compact(window.app_handle())
+            && window
+                .try_state::<background::BackdropStatus>()
+                .is_some_and(|backdrop| needs_compact_region(&backdrop))
         {
             if let Ok(hwnd) = window.hwnd() {
                 let _ = set_compact_region(hwnd.0, true, size.width, size.height);

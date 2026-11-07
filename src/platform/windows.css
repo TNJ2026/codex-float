@@ -2,16 +2,15 @@
 .windows-window > .chat-panel { display:flex; flex-direction:column; height:100%; min-height:0; }
 .windows-window > .chat-panel[hidden] { display:none; }
 .windows-window.compact { border:0; border-radius:0; background:transparent; overflow:visible; }
-.windows-window.compact .mini-status { background: var(--window-bg); }
-.windows-window.compact .mini-frame { fill: transparent; }
-.windows-window.compact .mini-status svg { filter: drop-shadow(0 0 1px #000); }
+.windows-window.compact .mini-frame { fill: var(--window-bg); }
+.windows-window.compact .mini-icon { filter: drop-shadow(0 0 1px #000); }
 @media (forced-colors: active) {
   .windows-window { background: Canvas; color: CanvasText; }
 }
 :root[data-window-platform="windows"] .windows-window { border: 0; border-radius: 0; }
 @media (forced-colors: none) {
   :root:is([data-native-background="desktop-acrylic"], [data-native-background="desktop-acrylic-controller"]) .windows-window { background: transparent; }
-  :root:is([data-native-background="desktop-acrylic"], [data-native-background="desktop-acrylic-controller"]) .windows-window.compact .mini-status { background: transparent; }
+  :root:is([data-native-background="desktop-acrylic"], [data-native-background="desktop-acrylic-controller"]) .windows-window.compact .mini-frame { fill: transparent; }
   :root[data-native-background="custom-blur"] .windows-window:not(.compact) { isolation: isolate; }
   :root[data-native-background="custom-blur"] .windows-window:not(.compact)::before {
     content: "";
