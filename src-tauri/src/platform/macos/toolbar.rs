@@ -153,6 +153,12 @@ impl ToolbarDelegate {
             button.setBordered(false);
             button.setImageScaling(NSImageScaling::ScaleNone);
             button.setFrame(NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(28.0, 28.0)));
+            // A frame is only an initial size. In the SDK 15 compatibility
+            // layout AppKit otherwise shrinks these image-only custom views
+            // to their 16-point images, crowding the three toolbar actions.
+            button.setTranslatesAutoresizingMaskIntoConstraints(false);
+            button.widthAnchor().constraintEqualToConstant(28.0).setActive(true);
+            button.heightAnchor().constraintEqualToConstant(28.0).setActive(true);
             item.setView(Some(&button));
             if identifier.to_string() == "float.settings" {
                 let icon = vector_image(
