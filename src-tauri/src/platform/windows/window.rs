@@ -6,7 +6,60 @@ use windows_sys::Win32::{
         Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR},
         Gdi::{CreateEllipticRgn, DeleteObject, GetWindowRgnBox, SetWindowRgn},
     },
+    UI::WindowsAndMessaging::{SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER},
 };
+
+pub fn set_compact_bounds(
+    window: &WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+    size: u32,
+) -> tauri::Result<()> {
+    set_window_bounds(window, position, tauri::PhysicalSize::new(size, size))
+}
+
+pub fn set_restored_bounds(
+    window: &WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+    content_size: tauri::PhysicalSize<u32>,
+) -> tauri::Result<()> {
+    let outer = window.outer_size()?;
+    let inner = window.inner_size()?;
+    let size = tauri::PhysicalSize::new(
+        content_size.width + outer.width.saturating_sub(inner.width),
+        content_size.height + outer.height.saturating_sub(inner.height),
+    );
+    set_window_bounds(window, position, size)
+}
+
+fn set_window_bounds(
+    window: &WebviewWindow,
+    position: tauri::PhysicalPosition<i32>,
+    size: tauri::PhysicalSize<u32>,
+) -> tauri::Result<()> {
+    // Resize and move together so the first small frame is already at its anchor.
+    let hwnd = window.hwnd()?;
+    let result = unsafe {
+        SetWindowPos(
+            hwnd.0,
+            std::ptr::null_mut(),
+            position.x,
+            position.y,
+            size.width as i32,
+            size.height as i32,
+            SWP_NOACTIVATE | SWP_NOZORDER,
+        )
+    };
+    if result == 0 {
+        return Err(std::io::Error::last_os_error().into());
+    }
+    Ok(())
+}
+
+pub fn refresh_language(window: &WebviewWindow) {
+    if let Ok(hwnd) = window.hwnd() {
+        caption::refresh_language(hwnd.0);
+    }
+}
 
 fn needs_compact_region(status: &background::BackdropStatus) -> bool {
     // The custom compositor already clips its blur inside the antialiased SVG rim.

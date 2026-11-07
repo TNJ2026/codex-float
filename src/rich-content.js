@@ -1,3 +1,4 @@
+import {t} from './i18n.js';
 export function mediaKind(source='',mime=''){
  if(/^video\//iu.test(mime)||/^data:video\//iu.test(source))return 'video';
  if(/^audio\//iu.test(mime)||/^data:audio\//iu.test(source))return 'audio';
@@ -31,7 +32,7 @@ export function attachmentsOf(item){
   let src=typeof url==='string'?url:url?.url;const format=/audio/iu.test(part.type||'')&&(part.format||detail.format),mime=part.mimeType||part.mime_type||detail.mimeType||(format?`audio/${format}`:'');
   const data=part.data||detail.data;if(!src&&typeof data==='string'&&/^(audio|video)\//u.test(mime))src=`data:${mime};base64,${data}`;
   if(!src||seen.has(src))continue;seen.add(src);
-  files.push({src,kind:mediaKind(src,mime)||(/video/iu.test(part.type||'')?'video':/audio/iu.test(part.type||'')?'audio':'file'),name:part.name||part.filename||part.file_name||detail.filename||(/^data:/iu.test(src)?'媒体附件':src.split(/[\\/]/u).at(-1)?.split('?')[0])||'附件',size:part.size||part.sizeBytes,mime});
+  files.push({src,kind:mediaKind(src,mime)||(/video/iu.test(part.type||'')?'video':/audio/iu.test(part.type||'')?'audio':'file'),name:part.name||part.filename||part.file_name||detail.filename||(/^data:/iu.test(src)?t("媒体附件"):src.split(/[\\/]/u).at(-1)?.split('?')[0])||t("附件"),size:part.size||part.sizeBytes,mime});
  }
  cache.set(item,files);return files;
 }

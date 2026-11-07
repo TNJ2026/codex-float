@@ -1,3 +1,4 @@
+import {t,useLanguage} from './i18n.js';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {predictionTarget} from './predictions';
@@ -29,5 +30,6 @@ export function useComposerPrediction({threadId,conversation,enabled,available,d
 }
 
 export function ComposerPrediction({text}){
- return text?<div id="composer-prediction" className="composer-prediction" aria-live="polite"><span>{text}</span><small>Tab 接受 · Esc 忽略</small></div>:null;
+ useLanguage();
+ return text?<div id="composer-prediction" className="composer-prediction" aria-live="polite"><span>{text}</span><small>{t("Tab 接受 · Esc 忽略")}</small></div>:null;
 }

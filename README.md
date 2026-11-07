@@ -1,6 +1,6 @@
-# Codex Float
+# CodexFloat
 
-![Codex Float — floating chat window with a glass app icon](docs/images/readme-banner.png)
+![CodexFloat — floating chat window with a glass app icon](docs/images/readme-banner.png)
 
 English | [简体中文](README.zh-CN.md)
 
@@ -40,7 +40,7 @@ Windows has been tested locally. macOS has been verified on Apple Silicon throug
 
 | Feature | Current limitation |
 | --- | --- |
-| Start a blank chat | Create the chat in the Codex desktop app, then select it in Codex Float. Forking an existing turn is supported. |
+| Start a blank chat | Create the chat in the Codex desktop app, then select it in CodexFloat. Forking an existing turn is supported. |
 | Built-in dictation and live voice chat | The floating composer has no microphone or voice chat controls. |
 | Edit steering messages | Only original user messages can be edited and resent. |
 | Compact while a task is running | Run `/compact` once the chat is idle. |
@@ -50,7 +50,7 @@ Windows has been tested locally. macOS has been verified on Apple Silicon throug
 ## Usage
 
 1. Keep the Codex desktop app running and open the chat you want to use there.
-2. Launch Codex Float and select that chat. Use the sync button to reconnect if needed.
+2. Launch CodexFloat and select that chat. Use the sync button to reconnect if needed.
 3. Press **Enter** to send or **Shift+Enter** for a new line. Sending during a task adds instructions to that task.
 
 Use the title bar to move or pin the window. macOS uses native traffic-light window controls: yellow minimizes to the Dock, and the circle button at the top right switches to the floating status ball. On Windows, the minimize button switches to the status ball.

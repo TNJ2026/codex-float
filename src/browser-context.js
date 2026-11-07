@@ -1,3 +1,4 @@
+import {t} from './i18n.js';
 import {invoke} from '@tauri-apps/api/core';
 import {readBrowserLimit} from './browser-settings';
 
@@ -25,7 +26,7 @@ export function updateBrowserContexts(items,pages){
  const next=items.map(item=>{
   if(item.kind!=='browser'||!item.autoUpdate||!item.browserWindowId)return item;
   const page=pages.find(page=>page.browserWindowId===item.browserWindowId);
-  const updated=page?{...page,autoUpdate:true,browserUnavailable:false}:{...item,content:'',browserUnavailable:true,description:'浏览器窗口已关闭或当前网页不可读取'};
+  const updated=page?{...page,autoUpdate:true,browserUnavailable:false}:{...item,content:'',browserUnavailable:true,description:t("浏览器窗口已关闭或当前网页不可读取")};
   if(JSON.stringify(updated)===JSON.stringify(item))return item;
   changed=true;return updated;
  });

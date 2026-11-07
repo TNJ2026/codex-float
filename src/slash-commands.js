@@ -1,3 +1,4 @@
+import {t} from './i18n.js';
 export const slashCommands=[
  {id:'model',title:'模型与推理强度',description:'选择模型和推理强度'},
  {id:'fast',title:'切换快速模式',description:'切换标准与快速响应，下轮生效'},
@@ -15,6 +16,6 @@ export function slashAt(text,caret=text.length){
 }
 export function slashRows(query,skills,busy){
  const words=query.trim().toLocaleLowerCase().split(/\s+/u);
- const matches=row=>words.every(word=>[row.id,row.title,row.description].join(' ').toLocaleLowerCase().includes(word));
+ const matches=row=>words.every(word=>[row.id,row.title,row.description,t(row.title),t(row.description)].join(' ').toLocaleLowerCase().includes(word));
  return [...slashCommands.map(command=>({...command,kind:'command',disabled:!!command.idleOnly&&busy})),...skills.map(skill=>({id:skill.label,title:skill.label,description:skill.description||skill.path,kind:'skill',skill}))].filter(matches).slice(0,80);
 }

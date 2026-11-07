@@ -2,7 +2,7 @@ use resvg::{
     tiny_skia::{Pixmap, Transform},
     usvg::{Options, Tree},
 };
-use std::{io, mem::size_of, ptr::null_mut, slice, sync::OnceLock};
+use std::{cell::Cell, io, mem::size_of, ptr::null_mut, slice, sync::OnceLock};
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 use windows_sys::w;
 use windows_sys::Win32::{
@@ -14,7 +14,7 @@ use windows_sys::Win32::{
     System::LibraryLoader::GetModuleHandleW,
     UI::{
         Controls::WM_MOUSELEAVE,
-        HiDpi::GetDpiForWindow,
+        HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi},
         Input::KeyboardAndMouse::{TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT},
         Shell::{DefSubclassProc, GetWindowSubclass, RemoveWindowSubclass, SetWindowSubclass},
         WindowsAndMessaging::*,
@@ -30,6 +30,70 @@ static ICONS: OnceLock<[Tree; 2]> = OnceLock::new();
 struct Caption {
     overlay: HWND,
     app: AppHandle,
+    icons: WindowIcons,
+}
+
+#[derive(Default)]
+struct WindowIcons {
+    handles: Cell<[HICON; 2]>,
+    dpi: Cell<u32>,
+}
+
+impl WindowIcons {
+    unsafe fn refresh(&self, hwnd: HWND) {
+        let dpi = GetDpiForWindow(hwnd).max(96);
+        if self.dpi.get() == dpi {
+            return;
+        }
+        let instance = GetModuleHandleW(std::ptr::null());
+        let resource = tauri::utils::platform::WINDOWS_APP_ICON_RESOURCE_ID as usize as *const u16;
+        let small = LoadImageW(
+            instance,
+            resource,
+            IMAGE_ICON,
+            GetSystemMetricsForDpi(SM_CXSMICON, dpi),
+            GetSystemMetricsForDpi(SM_CYSMICON, dpi),
+            LR_DEFAULTCOLOR,
+        );
+        let large = LoadImageW(
+            instance,
+            resource,
+            IMAGE_ICON,
+            GetSystemMetricsForDpi(SM_CXICON, dpi),
+            GetSystemMetricsForDpi(SM_CYICON, dpi),
+            LR_DEFAULTCOLOR,
+        );
+        if small.is_null() || large.is_null() {
+            for icon in [small, large] {
+                if !icon.is_null() {
+                    DestroyIcon(icon);
+                }
+            }
+            return;
+        }
+        // Keep the native ICO alpha and per-DPI sizes, without an RGBA round trip.
+        let previous = self.handles.replace([small, large]);
+        self.dpi.set(dpi);
+        SendMessageW(hwnd, WM_SETICON, ICON_SMALL as usize, small as isize);
+        SendMessageW(hwnd, WM_SETICON, ICON_BIG as usize, large as isize);
+        for icon in previous {
+            if !icon.is_null() {
+                DestroyIcon(icon);
+            }
+        }
+    }
+}
+
+impl Drop for WindowIcons {
+    fn drop(&mut self) {
+        for icon in self.handles.get() {
+            if !icon.is_null() {
+                unsafe {
+                    DestroyIcon(icon);
+                }
+            }
+        }
+    }
 }
 
 pub fn install(window: &WebviewWindow) -> Result<(), Box<dyn std::error::Error>> {
@@ -51,7 +115,7 @@ pub fn install(window: &WebviewWindow) -> Result<(), Box<dyn std::error::Error>>
         let overlay = CreateWindowExW(
             WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
             CLASS,
-            w!("Codex Float 标题栏操作"),
+            w!("CodexFloat 标题栏操作"),
             WS_POPUP,
             0,
             0,
@@ -68,6 +132,7 @@ pub fn install(window: &WebviewWindow) -> Result<(), Box<dyn std::error::Error>>
         let caption = Box::into_raw(Box::new(Caption {
             overlay,
             app: window.app_handle().clone(),
+            icons: WindowIcons::default(),
         }));
         if SetWindowSubclass(owner, Some(owner_proc), SUBCLASS, caption as usize) == 0 {
             let error = io::Error::last_os_error();
@@ -81,6 +146,7 @@ pub fn install(window: &WebviewWindow) -> Result<(), Box<dyn std::error::Error>>
             AppendMenuW(menu, MF_STRING, SETTINGS as usize, w!("设置"));
             AppendMenuW(menu, MF_STRING, PIN as usize, w!("切换置顶"));
         }
+        (*caption).icons.refresh(owner);
         update(owner, overlay);
     }
     Ok(())
@@ -92,6 +158,18 @@ pub fn refresh(hwnd: HWND) {
         if GetWindowSubclass(hwnd, Some(owner_proc), SUBCLASS, &mut data) != 0 {
             update(hwnd, (*(data as *const Caption)).overlay);
         }
+    }
+}
+
+pub fn refresh_language(hwnd: HWND) {
+    let text = crate::services::ui_language::text;
+    unsafe {
+        let menu = GetSystemMenu(hwnd, 0);
+        for (id, label) in [(SETTINGS, text("设置", "Settings")), (PIN, text("切换置顶", "Toggle always on top"))] {
+            let label: Vec<u16> = label.encode_utf16().chain(Some(0)).collect();
+            ModifyMenuW(menu, id, MF_BYCOMMAND | MF_STRING, id as usize, label.as_ptr());
+        }
+        DrawMenuBar(hwnd);
     }
 }
 
@@ -138,6 +216,9 @@ unsafe extern "system" fn owner_proc(
         }
     }
     let result = DefSubclassProc(hwnd, msg, wp, lp);
+    if matches!(msg, WM_DPICHANGED | WM_SETTINGCHANGE) {
+        caption.icons.refresh(hwnd);
+    }
     if matches!(
         msg,
         WM_WINDOWPOSCHANGED

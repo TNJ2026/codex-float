@@ -4,7 +4,7 @@ import React,{act} from 'react';
 import {JSDOM} from 'jsdom';
 import {createServer} from 'vite';
 
-for(const platform of ['macOS','Windows'])test(`${platform} menus save selections and discard cancellations or stale selections`,async()=>{
+for(const platform of ['macOS','Windows'])test(`${platform} thread picker uses the grouped app popup and selects a chat`,async()=>{
  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'});
  const globals=['window','document','IS_REACT_ACT_ENVIRONMENT'],previous=globals.map(key=>globalThis[key]);
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
@@ -38,15 +38,12 @@ for(const platform of ['macOS','Windows'])test(`${platform} menus save selection
   await act(async()=>root.render(React.createElement(ThreadPicker,{threads:[{id:'one',thread_name:'Current'},{id:'two',thread_name:'Other'}],value:'one',onChange:id=>changed.push(id)})));
   const popupCount=calls.filter(call=>call.cmd==='plugin:menu|popup').length;
   await click();
-  if(platform==='macOS'){
    assert.equal(calls.filter(call=>call.cmd==='plugin:menu|popup').length,popupCount);
    const list=document.querySelector('[role="listbox"]');
    assert.ok(list.querySelector('[role="group"]'));
    assert.equal(list.querySelector('[aria-selected="true"]').textContent,'Current');
    await act(async()=>list.querySelector('[aria-selected="false"]').click());
    assert.equal(document.querySelector('[role="listbox"]'),null);
-  }else assert.equal(calls.find(call=>call.cmd==='plugin:menu|popup').args.at.toJSON().Logical.y,66);
-  if(platform==='Windows')assert.ok(calls.some(call=>call.cmd==='plugin:resources|close'),'native menu resources are released');
   assert.deepEqual(changed,['two']);
  }finally{if(root)await act(async()=>root.unmount());await vite.close();dom.window.close();globals.forEach((key,index)=>{if(previous[index]===undefined)delete globalThis[key];else globalThis[key]=previous[index];});}
 });

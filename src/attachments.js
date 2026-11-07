@@ -1,3 +1,4 @@
+import {t} from './i18n.js';
 export const MAX_ATTACHMENTS=20;
 export const MAX_ATTACHMENT_BYTES=25*1024*1024;
 export function mergeAttachments(current,added,limit=MAX_ATTACHMENTS){
@@ -7,15 +8,15 @@ export function mergeAttachments(current,added,limit=MAX_ATTACHMENTS){
   if(seen.has(key))continue;
   seen.add(key);result.push(file);
  }
- if(result.length>limit)throw Error('一次最多添加 20 个附件');
+ if(result.length>limit)throw Error(t("一次最多添加 20 个附件"));
  return result;
 }
 export function fileData(file){
- if(file.size>MAX_ATTACHMENT_BYTES)return Promise.reject(Error('单个附件不能超过 25 MB'));
+ if(file.size>MAX_ATTACHMENT_BYTES)return Promise.reject(Error(t("单个附件不能超过 25 MB")));
  return new Promise((resolve,reject)=>{
   const reader=new FileReader();
   reader.onload=()=>resolve(String(reader.result).split(',')[1]);
-  reader.onerror=()=>reject(Error(`无法读取附件：${file.name}`));
+  reader.onerror=()=>reject(Error(t("无法读取附件：{0}",[file.name])));
   reader.readAsDataURL(file);
  });
 }

@@ -17,3 +17,4 @@ pub(crate) mod forks;
 pub(crate) mod predictions;
 pub(crate) mod subagent_actions;
 pub(crate) mod settings_backdrop;
+pub(crate) mod ui_language;

@@ -1,3 +1,4 @@
+import {t,useLanguage} from './i18n.js';
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {invoke} from '@tauri-apps/api/core';
@@ -7,6 +8,7 @@ import {effortForModel,effortLabel,supportedEfforts} from './model-settings';
 import {ReasoningSlider} from './ReasoningSlider';
 
 export function ModelPicker({threadId,model,effort,names={},disabled,busy,onApplied,onError,onSavingChange,openRequest}){
+ useLanguage();
  const [open,setOpen]=useState(false),[models,setModels]=useState([]),[base,setBase]=useState(null),[selected,setSelected]=useState(''),[reasoning,setReasoning]=useState(''),[loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[position,setPosition]=useState({});
  const [saved,setSaved]=useState(false);
  const [adjusting,setAdjusting]=useState(false);
@@ -62,18 +64,18 @@ export function ModelPicker({threadId,model,effort,names={},disabled,busy,onAppl
   rows[next]?.focus();
  }
  return <>
-  <button type="button" ref={button} className="model-picker-button" aria-label="选择模型与推理强度" aria-haspopup="dialog" aria-expanded={open} aria-controls={open?'model-settings-popup':undefined} disabled={disabled||saving} title={saving?'正在保存模型设置…':disabled?'连接聊天后选择模型与推理强度':`${modelDisplayName(model,names)||'模型'} · ${effortLabel(effort)}`} onClick={()=>setOpen(value=>!value)}><span className="model-name">{modelDisplayName(model,names)||'等待模型信息'}</span><small>{saving?'保存中':effortLabel(effort)}</small><ChevronDown size={11}/></button>
-  {open&&createPortal(<div id="model-settings-popup" className="model-settings-popup" style={position} role="dialog" aria-label="模型与推理强度" ref={popup} onKeyDown={keyboard}>
-   <div className="model-popup-heading"><strong>模型与推理强度</strong><button type="button" aria-label="刷新模型列表" disabled={loading||saving||adjusting} onClick={()=>load(true)}><RefreshCw size={13} className={loading?'spin':''}/></button><button type="button" aria-label="关闭模型设置" onClick={()=>setOpen(false)}><X size={14}/></button></div>
-   {loading?<p className="model-popup-note" role="status">正在读取可用模型…</p>:<>
-    <div className="model-options" role="listbox" aria-label="可用模型">{models.map(entry=><button type="button" role="option" aria-selected={selected===entry.model} key={entry.model} disabled={saving} title={entry.description} onClick={()=>{if(entry.model!==selected)save(entry.model,effortForModel(entry,reasoning));}}><span>{modelDisplayName(entry.model,{...names,[entry.model]:entry.displayName||names[entry.model]})}</span>{selected===entry.model&&<Check size={13}/>}</button>)}</div>
-    {!option&&base&&<p className="model-popup-note">当前模型不在可选列表中，请选择可用模型。</p>}
+  <button type="button" ref={button} className="model-picker-button" aria-label={t("选择模型与推理强度")} aria-haspopup="dialog" aria-expanded={open} aria-controls={open?'model-settings-popup':undefined} disabled={disabled||saving} title={saving?t("正在保存模型设置…"):disabled?t("连接聊天后选择模型与推理强度"):`${modelDisplayName(model,names)||t("模型")} · ${effortLabel(effort)}`} onClick={()=>setOpen(value=>!value)}><span className="model-name">{modelDisplayName(model,names)||t("等待模型信息")}</span><small>{saving?t("保存中"):effortLabel(effort)}</small><ChevronDown size={11}/></button>
+  {open&&createPortal(<div id="model-settings-popup" className="model-settings-popup" style={position} role="dialog" aria-label={t("模型与推理强度")} ref={popup} onKeyDown={keyboard}>
+   <div className="model-popup-heading"><strong>{t("模型与推理强度")}</strong><button type="button" aria-label={t("刷新模型列表")} disabled={loading||saving||adjusting} onClick={()=>load(true)}><RefreshCw size={13} className={loading?'spin':''}/></button><button type="button" aria-label={t("关闭模型设置")} onClick={()=>setOpen(false)}><X size={14}/></button></div>
+   {loading?<p className="model-popup-note" role="status">{t("正在读取可用模型…")}</p>:<>
+    <div className="model-options" role="listbox" aria-label={t("可用模型")}>{models.map(entry=><button type="button" role="option" aria-selected={selected===entry.model} key={entry.model} disabled={saving} title={entry.description} onClick={()=>{if(entry.model!==selected)save(entry.model,effortForModel(entry,reasoning));}}><span>{modelDisplayName(entry.model,{...names,[entry.model]:entry.displayName||names[entry.model]})}</span>{selected===entry.model&&<Check size={13}/>}</button>)}</div>
+    {!option&&base&&<p className="model-popup-note">{t("当前模型不在可选列表中，请选择可用模型。")}</p>}
     {option?.description&&<p className="model-popup-description">{option.description}</p>}
     <ReasoningSlider model={option} effort={reasoning} disabled={saving||!option} onCommit={value=>save(selected,value)} onPreviewChange={active=>{setAdjusting(active);callbacks.current.onSavingChange?.(active||saveLock.current);}}/>
-    {!options.length&&option&&<p className="model-popup-note">此模型未提供可调节的推理强度。</p>}
+    {!options.length&&option&&<p className="model-popup-note">{t("此模型未提供可调节的推理强度。")}</p>}
    </>}
-   {error&&<p className="model-popup-error" role="alert">{error}</p>}
-   <div className="model-popup-footer"><span role="status">{saving?'正在保存…':adjusting?'松开滑块后自动保存。':error?'保存未确认，请刷新重试。':saved?'已保存，下轮生效。':busy?'任务进行中，选择后下轮生效。':'选择后自动保存，下轮生效。'}</span></div>
+   {error&&<p className="model-popup-error" role="alert">{t(error)}</p>}
+   <div className="model-popup-footer"><span role="status">{saving?t("正在保存…"):adjusting?t("松开滑块后自动保存。"):error?t("保存未确认，请刷新重试。"):saved?t("已保存，下轮生效。"):busy?t("任务进行中，选择后下轮生效。"):t("选择后自动保存，下轮生效。")}</span></div>
   </div>,document.body)}
  </>;
 }

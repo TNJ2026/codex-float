@@ -1,8 +1,10 @@
+import {t,useLanguage,getLanguage} from './i18n.js';
 import React,{cloneElement,memo,useCallback,useEffect,useRef,useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {quotaWindows,ringQuota} from './usage';
 
 export const AccountUsage=memo(function AccountUsage({busy,children}){
+ useLanguage();
  const [windows,setWindows]=useState([]),[loading,setLoading]=useState(false),[error,setError]=useState('');
  const [updatedAt,setUpdatedAt]=useState(null);
  const active=useRef(false),mounted=useRef(false),lastRequest=useRef(0);
@@ -12,7 +14,7 @@ export const AccountUsage=memo(function AccountUsage({busy,children}){
   active.current=true;setLoading(true);
   try{
    const result=quotaWindows(await invoke('read_usage'));
-   if(mounted.current){setWindows(result);setUpdatedAt(Date.now());setError(result.length?'':'暂无账号额度信息');}
+   if(mounted.current){setWindows(result);setUpdatedAt(Date.now());setError(result.length?'':t("暂无账号额度信息"));}
   }catch(e){if(mounted.current)setError(String(e));}
   finally{active.current=false;if(mounted.current)setLoading(false);}
  },[]);
@@ -34,8 +36,8 @@ export const AccountUsage=memo(function AccountUsage({busy,children}){
  },[windows,refresh]);
  const quota=ringQuota(windows);
  const remaining=quota?.remaining;
- const label=quota?`${quota.label}剩余 ${Math.round(remaining)}%`:loading?'正在读取额度':'额度暂不可用';
- const title=[label,quota?.resetsAt&&`重置于 ${new Date(quota.resetsAt*1000).toLocaleString('zh-CN')}`,updatedAt&&`更新时间：${new Date(updatedAt).toLocaleTimeString('zh-CN')}`,error&&`读取失败，数据未更新：${error}`,'每30秒自动更新'].filter(Boolean).join('\n');
+ const label=quota?t("{0}剩余 {1}%",[quota.label,Math.round(remaining)]):loading?t("正在读取额度"):t("额度暂不可用");
+ const title=[label,quota?.resetsAt&&t("重置于 {0}",[new Date(quota.resetsAt*1000).toLocaleString(getLanguage())]),updatedAt&&t("更新时间：{0}",[new Date(updatedAt).toLocaleTimeString(getLanguage())]),error&&t("读取失败，数据未更新：{0}",[error]),t("每30秒自动更新")].filter(Boolean).join('\n');
  const tone=remaining==null?'unknown':remaining<=5?'critical':remaining<=20?'warning':'normal';
  return <div className={'send-quota '+tone} title={title}>
   <div className="quota-ring" role="img" aria-label={label} aria-busy={loading}>

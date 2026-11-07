@@ -1,6 +1,6 @@
-# Codex Float
+# CodexFloat
 
-![Codex Float 蓝色玻璃图标与半透明悬浮聊天窗口](docs/images/readme-banner.png)
+![CodexFloat 蓝色玻璃图标与半透明悬浮聊天窗口](docs/images/readme-banner.png)
 
 [English](README.md) | 简体中文
 
@@ -49,7 +49,7 @@ Windows 已在本机验证。macOS 已在 Apple Silicon 上完成实机与模拟
 ## 使用
 
 1. 保持 Codex 桌面端运行，并在主窗口打开目标聊天。
-2. 启动 Codex Float，选择该聊天；需要重新连接时点击同步按钮。
+2. 启动 CodexFloat，选择该聊天；需要重新连接时点击同步按钮。
 3. **Enter** 发送，**Shift+Enter** 换行。任务执行中发送内容会追加指令。
 
 拖动标题栏移动窗口，图钉切换置顶。macOS 使用系统红黄绿窗口按钮，黄色按钮最小化到 Dock，右上角圆点按钮切换为悬浮状态球；Windows 的最小化按钮切换为悬浮状态球。

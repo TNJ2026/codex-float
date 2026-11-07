@@ -1,3 +1,4 @@
+import {t} from './i18n.js';
 export const subagentItem=item=>['collabAgentToolCall','subAgentActivity'].includes(item?.type);
 export const subagentStatusLabels={pendingInit:'等待启动',running:'运行中',completed:'已完成',interrupted:'已中断',shutdown:'已关闭',errored:'失败',notFound:'未找到',unknown:'状态未知'};
 export const subagentWorking=status=>['pendingInit','running'].includes(status);
@@ -26,13 +27,13 @@ export function subagentMessage(turn,items,turnKey,history=new Map()){
   const receivers=Array.isArray(item.receiverThreads)?item.receiverThreads:[];
   const states=item.agentsStates&&typeof item.agentsStates==='object'?item.agentsStates:{};
   const ids=[...new Set([...(Array.isArray(item.receiverThreadIds)?item.receiverThreadIds:[]),...receivers.map(receiver=>receiver?.threadId),...Object.keys(states)])].filter(id=>typeof id==='string'&&id&&id!==item.senderThreadId);
-  if(item.status==='failed'&&!ids.length)errors.push({id:item.id||`error:${errors.length}`,text:`${actions[item.tool]||'子代理操作'}失败`});
+  if(item.status==='failed'&&!ids.length)errors.push({id:item.id||`error:${errors.length}`,text:t("{0}失败",[actions[item.tool]||'子代理操作'])});
   for(const id of ids){
    const agent=get(id),thread=receivers.find(receiver=>receiver?.threadId===id)?.thread;
    const name=string(thread?.agentNickname)||pathName(thread?.agentPath);
    if(name)agent.name=name;
    if(string(thread?.agentRole))agent.role=thread.agentRole;
-   if(item.status==='failed')agent.actionError=`${actions[item.tool]||'子代理操作'}失败`;
+   if(item.status==='failed')agent.actionError=t("{0}失败",[actions[item.tool]||'子代理操作']);
    else if(['spawnAgent','sendInput','resumeAgent'].includes(item.tool)){
     agent.status='running';agent.result='';agent.actionError='';
     if(string(item.prompt).trim())agent.task=item.prompt;
@@ -45,7 +46,7 @@ export function subagentMessage(turn,items,turnKey,history=new Map()){
    }
   }
  }
- const entries=[...agents.values()].map((agent,index)=>({...agent,name:agent.name||`子代理 ${index+1}`}));
+ const entries=[...agents.values()].map((agent,index)=>({...agent,name:agent.name||t("子代理 {0}",[index+1])}));
  for(const agent of entries)history.set(agent.threadId,{...agent});
  if(!entries.length&&!errors.length)return null;
  return {id:`subagents:${turnKey}`,type:'subagentProgress',role:'assistant',text:'',images:[],agents:entries,errors,turnStatus:turn.status,anchorIndex};

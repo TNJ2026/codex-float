@@ -1,3 +1,4 @@
+import {t,useLanguage} from './i18n.js';
 import React,{useLayoutEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 
@@ -6,6 +7,7 @@ const stack=[];
 const bodyOf=entry=>entry.element.querySelector('.file-preview-body');
 
 export function PreviewDialog({title,onClose,children,className=''}){
+ useLanguage();
  const dialog=useRef(null),heading=useRef(null);
  const [hasParent,setHasParent]=useState(false);
  useLayoutEffect(()=>{
@@ -32,7 +34,7 @@ export function PreviewDialog({title,onClose,children,className=''}){
   };
  },[]);
  return createPortal(<dialog role="dialog" className={'file-preview '+className} ref={dialog} aria-label={title} onCancel={e=>{e.preventDefault();onClose();}}>
-  <header><strong ref={heading} tabIndex={-1} title={title}>{title}</strong><button type="button" onClick={onClose} aria-label={hasParent?'返回上一层':'关闭预览'}>{hasParent?'返回':'关闭'}</button></header>
+  <header><strong ref={heading} tabIndex={-1} title={title}>{title}</strong><button type="button" onClick={onClose} aria-label={hasParent?t("返回上一层"):t("关闭预览")}>{hasParent?t("返回"):t("关闭")}</button></header>
   <div className="file-preview-body">{children}</div>
  </dialog>,document.body);
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Codex Float",
+  "productName": "CodexFloat",
   "version": "0.1.0",
   "identifier": "local.codex.float.demo",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Codex Float",
+        "title": "CodexFloat",
         "width": 450,
         "height": 720,
         "minWidth": 360,

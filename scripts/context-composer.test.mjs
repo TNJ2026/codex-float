@@ -26,6 +26,7 @@ test('composer keyboard completion sends structured context without a prompt and
   if(cmd==='plugin:event|unlisten'||cmd==='plugin:window|set_theme')return;
   if(cmd==='list_threads')return {threads:[{id:state.id,thread_name:'Test'}],currentThread:state.id};
   if(cmd==='connect_thread'){events.get('codex-stream')?.({payload:{conversationId:state.id,change:{type:'snapshot',revision:1,conversationState:state}}});return {connected:true};}
+  if(cmd==='get_mini_mode')return false;
   if(cmd==='background_settings')return {mode:'custom-blur',amount:30,titlebarHeight:54};
   if(cmd==='set_background_blur')return args.amount;
   if(cmd==='read_usage')return {};

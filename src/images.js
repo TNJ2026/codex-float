@@ -1,3 +1,4 @@
+import {t} from './i18n.js';
 // Only image sources are converted; ordinary message links remain inert.
 export function imageSource(value, convertLocal = () => '') {
  if (typeof value !== 'string') return '';
@@ -33,7 +34,7 @@ export function generatedImagesOf(item) {
   src=`data:image/${type};base64,${result}`;
  }
  src=src||item.savedPath||item.src||'';
- const images=src?[{id:item.id,src,alt:'生成的图片'}]:emptyImages;
+ const images=src?[{id:item.id,src,alt:t("生成的图片")}]:emptyImages;
  generatedImageCache.set(item,images);
  return images;
 }
@@ -45,7 +46,7 @@ export function imagesOf(content) {
   if (!['image','input_image','localImage','local_image'].includes(part?.type)) return [];
   const source=part.path ?? part.url ?? part.image_url;
   const src=typeof source==='string'?source:source?.url;
-  return src?[{id:String(index),src,alt:part.alt||'图片附件'}]:[];
+  return src?[{id:String(index),src,alt:part.alt||t("图片附件")}]:[];
  });
  const result=images.length?images:emptyImages;
  imageCache.set(content,result);

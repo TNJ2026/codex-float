@@ -1,3 +1,4 @@
+import {t,useLanguage} from './i18n.js';
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {invoke} from '@tauri-apps/api/core';
@@ -6,6 +7,7 @@ import {useSettingsGlass} from './useSettingsGlass';
 import {effectiveTier,fastTier,isFast,speedLabel} from './speed-settings';
 
 export function SpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplied,onError,onSavingChange}){
+ useLanguage();
  const [open,setOpen]=useState(false),[entry,setEntry]=useState(null),[loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[position,setPosition]=useState({});
  const button=useRef(),popup=useRef(),scope=useRef(threadId),generation=useRef(0),lock=useRef(false),openRef=useRef(open),props=useRef({});
  const mode=document.documentElement.dataset.windowPlatform==='macos'?document.documentElement.dataset.nativeBackground:undefined;
@@ -17,7 +19,7 @@ export function SpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplie
  async function catalog(){
   const target=threadId,expected=model,id=++generation.current;setLoading(true);setError('');
   try{const result=await invoke('read_model_options',{threadId:target,forceReload:false});if(id!==generation.current||target!==scope.current||props.current.model!==expected)return null;
-   if(result.settings?.model!==expected)throw Error('模型已在主 App 变化，请重新同步后设置速度');
+   if(result.settings?.model!==expected)throw Error(t("模型已在主 App 变化，请重新同步后设置速度"));
    const option=result.models?.find(option=>option.model===expected)||null;setEntry(option);return option;
   }catch(error){if(id===generation.current){const message=String(error.message||error);setError(message);throw Error(message);}return null;}
   finally{if(id===generation.current)setLoading(false);}
@@ -48,7 +50,7 @@ export function SpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplie
    let option=entry?.model===expected?entry:null;
    if(wanted||toggle){option=await catalog();if(target!==scope.current||props.current.model!==expected)return;}
    const before=effectiveTier(props.current.tier,option),next=toggle?!isFast(before):wanted;
-   if(next&&!fastTier(option))throw Error('当前模型未提供快速模式，或账号暂无此档位');
+   if(next&&!fastTier(option))throw Error(t("当前模型未提供快速模式，或账号暂无此档位"));
    if((next&&isFast(before))||(!next&&['default','standard','auto'].includes(before)&&(props.current.tier!=null||option))){setOpen(false);return;}
    const result=await invoke('update_speed_settings',{threadId:target,model:expected,fast:next});
    if(target!==scope.current||props.current.model!==expected)return;
@@ -58,7 +60,7 @@ export function SpeedPicker({threadId,model,tier,disabled,toggleRequest,onApplie
  }
  useEffect(()=>{if(toggleRequest&&!disabled)save(false,true);},[toggleRequest]);
  return <>
-  <button type="button" ref={button} className={'speed-picker-button model-speed'+(fast||current==='ultrafast'?' fast':'')} aria-label="切换响应速度" aria-haspopup="menu" aria-expanded={open} disabled={disabled||saving} title={saving?'正在保存速度设置…':`${speedLabel(current)} · 点击切换响应速度`} onClick={()=>setOpen(value=>!value)}><Zap size={14} fill={fast||current==='ultrafast'?'currentColor':'none'}/></button>
-  {open&&createPortal(<div ref={popup} className="permission-popup speed-popup" data-native-glass={nativeGlass||undefined} style={position} role="menu" aria-label="响应速度" onKeyDown={keyboard}><button type="button" role="menuitemradio" aria-checked={['default','standard','auto'].includes(current)} disabled={saving||loading} onClick={()=>save(false)}><span><strong>标准速度</strong><small>常规响应速度与用量</small></span>{['default','standard','auto'].includes(current)&&<Check size={14}/>}</button><button type="button" role="menuitemradio" aria-checked={fast} disabled={saving||loading||!fastTier(entry)} onClick={()=>save(true)}><span><strong>快速模式</strong><small>{loading?'正在读取模型支持情况…':fastTier(entry)?'加快模型响应，更快消耗额度或点数':'当前模型或账号未提供快速档位'}</small></span>{fast&&<Check size={14}/>}</button><p className="permission-popup-note" role="status">{saving?'正在保存…':'选择后自动保存，下轮生效。'}</p>{error&&<p className="model-popup-error" role="alert">{error}</p>}</div>,document.body)}
+  <button type="button" ref={button} className={'speed-picker-button model-speed'+(fast||current==='ultrafast'?' fast':'')} aria-label={t("切换响应速度")} aria-haspopup="menu" aria-expanded={open} disabled={disabled||saving} title={saving?t("正在保存速度设置…"):t("{0} · 点击切换响应速度",[speedLabel(current)])} onClick={()=>setOpen(value=>!value)}><Zap size={14} fill={fast||current==='ultrafast'?'currentColor':'none'}/></button>
+  {open&&createPortal(<div ref={popup} className="permission-popup speed-popup" data-native-glass={nativeGlass||undefined} style={position} role="menu" aria-label={t("响应速度")} onKeyDown={keyboard}><button type="button" role="menuitemradio" aria-checked={['default','standard','auto'].includes(current)} disabled={saving||loading} onClick={()=>save(false)}><span><strong>{t("标准速度")}</strong><small>{t("常规响应速度与用量")}</small></span>{['default','standard','auto'].includes(current)&&<Check size={14}/>}</button><button type="button" role="menuitemradio" aria-checked={fast} disabled={saving||loading||!fastTier(entry)} onClick={()=>save(true)}><span><strong>{t("快速模式")}</strong><small>{loading?t("正在读取模型支持情况…"):fastTier(entry)?t("加快模型响应，更快消耗额度或点数"):t("当前模型或账号未提供快速档位")}</small></span>{fast&&<Check size={14}/>}</button><p className="permission-popup-note" role="status">{saving?t("正在保存…"):t("选择后自动保存，下轮生效。")}</p>{error&&<p className="model-popup-error" role="alert">{t(error)}</p>}</div>,document.body)}
  </>;
 }

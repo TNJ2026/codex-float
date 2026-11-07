@@ -1,3 +1,4 @@
+import {t} from './i18n.js';
 import {turnsOf} from './model.js';
 const OPEN='<send_user_message_question_reply>',CLOSE='</send_user_message_question_reply>';
 const itemsOf=turn=>Array.isArray(turn.items)?turn.items:Object.values(turn.items?.entitiesByKey||{});
@@ -10,7 +11,7 @@ export function asyncQuestionRequests(state){
  const turns=turnsOf(state);
  // The model can finish while its async question dialog remains open. Keep the
  // latest question batch addressable across subsequent turns, until answered.
- const turn=turns.findLast(t=>itemsOf(t).some(i=>i.type==='agentMessage'&&i.questions?.length));
+ const turn=turns.findLast(entry=>itemsOf(entry).some(i=>i.type==='agentMessage'&&i.questions?.length));
  if(!turn)return [];
  const items=itemsOf(turn),answered=new Set();
  for(const item of turns.flatMap(itemsOf)){
@@ -26,7 +27,7 @@ export function asyncQuestionRequests(state){
 export function questionReplyText(request,response){
  return OPEN+'\n'+JSON.stringify(request.params.questions.map(q=>{
   const answer=response?.answers?.[q.id]?.answers?.[0];
-  if(typeof answer!=='string'||!answer.trim())throw Error('请回答所有问题');
+  if(typeof answer!=='string'||!answer.trim())throw Error(t("请回答所有问题"));
   return {questionItemId:q.id,question:q.question,answer};
  }))+'\n'+CLOSE;
 }

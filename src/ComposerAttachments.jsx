@@ -1,3 +1,4 @@
+import {t,useLanguage} from './i18n.js';
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {invoke,convertFileSrc} from '@tauri-apps/api/core';
 import {getCurrentWebview} from '@tauri-apps/api/webview';
@@ -21,11 +22,11 @@ export function useAttachments({scope,onError}){
  },[update]);
  const addPaths=useCallback(paths=>run(()=>invoke('inspect_attachments',{paths})),[run]);
  const addFiles=useCallback(files=>run(async()=>{
-  if(files.length+current.current.length>MAX_ATTACHMENTS)throw Error('一次最多添加 20 个附件');
+  if(files.length+current.current.length>MAX_ATTACHMENTS)throw Error(t("一次最多添加 20 个附件"));
   const added=[];
   for(const file of files){
    const data=await fileData(file);
-   added.push(await invoke('save_attachment',{name:file.name||'粘贴图片.png',data}));
+   added.push(await invoke('save_attachment',{name:file.name||t("粘贴图片.png"),data}));
   }
   return added;
  }),[run]);
@@ -72,15 +73,17 @@ export function useAttachments({scope,onError}){
 }
 
 export function AttachmentButton({onClick,disabled}){
- return <button type="button" className="icon-button attachment-button" title="添加附件（也可拖入或粘贴）" aria-label="添加附件" onClick={onClick} disabled={disabled}><Paperclip size={16}/></button>;
+ useLanguage();
+ return <button type="button" className="icon-button attachment-button" title={t("添加附件（也可拖入或粘贴）")} aria-label={t("添加附件")} onClick={onClick} disabled={disabled}><Paperclip size={16}/></button>;
 }
 export function ComposerAttachments({files,onRemove,preparing,dragging}){
+ useLanguage();
  return <>
-  {!!files.length&&<div className="composer-attachments" aria-label="待发送附件">{files.map(file=><div className="composer-attachment" key={file.path} title={file.path}>
+  {!!files.length&&<div className="composer-attachments" aria-label={t("待发送附件")}>{files.map(file=><div className="composer-attachment" key={file.path} title={file.path}>
    {file.image?<img src={convertFileSrc(file.path)} alt=""/>:<File size={18} aria-hidden="true"/>}
-   <span>{file.name}</span><button type="button" aria-label={`移除附件 ${file.name}`} onClick={()=>onRemove(file.path)}><X size={12}/></button>
+   <span>{file.name}</span><button type="button" aria-label={t("移除附件 {0}",[file.name])} onClick={()=>onRemove(file.path)}><X size={12}/></button>
   </div>)}</div>}
-  {preparing&&<div className="attachment-hint" role="status">正在准备附件…</div>}
-  {dragging&&<div className="attachment-drop-hint">松开以添加附件</div>}
+  {preparing&&<div className="attachment-hint" role="status">{t("正在准备附件…")}</div>}
+  {dragging&&<div className="attachment-drop-hint">{t("松开以添加附件")}</div>}
  </>;
 }

@@ -3,6 +3,9 @@ use objc2_app_kit::{NSView, NSWindow, NSWindowTitleVisibility};
 use tauri::{Manager, WebviewWindow, Window, WindowEvent};
 
 pub use super::toolbar::install_menu;
+pub fn refresh_language(window: &WebviewWindow) {
+    super::toolbar::refresh_language(window);
+}
 pub fn initialize(window: &WebviewWindow) -> Result<(), String> {
     super::toolbar::install(window)?;
     super::drag::install(window)

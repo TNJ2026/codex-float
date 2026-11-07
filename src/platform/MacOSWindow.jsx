@@ -1,4 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
+import {t} from '../i18n';
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
 import {SessionView} from '../SessionView';
@@ -36,7 +37,7 @@ export function MacOSWindow(){
    if(disposed)return;
    document.documentElement.dataset.nativeBackground=settings.mode;
    if(!layoutReceived)applyTitlebarHeight(settings.titlebarHeight);
-   if(settings.error)setWindowError('背景材质已回退：'+settings.error);
+   if(settings.error)setWindowError(t('背景材质已回退：')+settings.error);
   }).catch(()=>{});
   return()=>{
    disposed=true;

@@ -13,6 +13,7 @@ use objc2_foundation::{
 };
 use std::cell::RefCell;
 use tauri::{Emitter, Manager, WebviewWindow};
+use crate::services::ui_language::text;
 
 struct Context {
     app: tauri::AppHandle,
@@ -56,7 +57,7 @@ fn vector_image(bytes: &[u8], label: &str) -> Option<Retained<NSImage>> {
     icon
 }
 fn pin_item(item: &NSToolbarItem, pinned: bool) {
-    let label = if pinned { "取消置顶" } else { "置顶" };
+    let label = if pinned { text("取消置顶", "Disable always on top") } else { text("置顶", "Always on top") };
     item.setLabel(&NSString::from_str(label));
     item.setToolTip(Some(&NSString::from_str(label)));
     let icon = vector_image(include_bytes!("../../../icons/pin-template.pdf"), label);
@@ -211,7 +212,7 @@ pub fn install(window: &WebviewWindow) -> Result<(), String> {
         toolbar.setDisplayMode(NSToolbarDisplayMode::IconOnly);
         toolbar.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
         let native = &*pointer.cast::<NSWindow>();
-        native.setTitle(&NSString::from_str("Codex Float"));
+        native.setTitle(&NSString::from_str("CodexFloat"));
         native.setTitleVisibility(NSWindowTitleVisibility::Visible);
         native.setTitlebarAppearsTransparent(true);
         native.setToolbarStyle(NSWindowToolbarStyle::Unified);
@@ -303,4 +304,43 @@ pub fn install_menu(app: &tauri::App) -> tauri::Result<()> {
         }
     });
     Ok(())
+}
+
+pub fn refresh_language(window: &WebviewWindow) {
+    TOOLBAR.with(|slot| {
+        if let Some((toolbar, _)) = slot.borrow().as_ref() {
+            for item in toolbar.items() {
+                let identifier = item.itemIdentifier().to_string();
+                if identifier == "float.pin" {
+                    pin_item(&item, window.is_always_on_top().unwrap_or(false));
+                    continue;
+                }
+                let label = match identifier.as_str() {
+                    "float.settings" => text("设置", "Settings"),
+                    "float.mini" => text("切换为悬浮状态球", "Switch to status ball"),
+                    _ => continue,
+                };
+                let label = NSString::from_str(label);
+                item.setLabel(&label);
+                item.setToolTip(Some(&label));
+                if let Some(view) = item.view() {
+                    if let Some(button) = view.downcast_ref::<NSButton>() {
+                        button.setToolTip(Some(&label));
+                        unsafe { let _: () = msg_send![button, setAccessibilityLabel: &*label]; }
+                    }
+                }
+            }
+        }
+    });
+    if let Some(menu) = window.app_handle().menu() {
+        for (id, label) in [
+            ("float.settings", text("设置…", "Settings…")),
+            ("float.pin", text("切换置顶", "Toggle always on top")),
+            ("float.mini", text("切换为悬浮状态球", "Switch to status ball")),
+        ] {
+            if let Some(tauri::menu::MenuItemKind::MenuItem(item)) = menu.get(id) {
+                let _ = item.set_text(label);
+            }
+        }
+    }
 }

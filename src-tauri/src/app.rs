@@ -58,18 +58,20 @@ pub fn run() {
             services::predictions::cancel_prediction,
             services::subagent_actions::subagent_action,
             platform::background::background_settings,
+            services::ui_language::set_ui_language,
             #[cfg(target_os = "windows")]
             platform::background::acrylic_opacity,
             services::settings_backdrop::settings_backdrop,
             platform::background::set_background_blur,
             services::mini_mode::set_mini_mode,
+            services::mini_mode::get_mini_mode,
             services::stop::stop_task,
             services::links::open_url,
             services::links::read_file_preview,
             services::links::reveal_file,
         ])
         .build(tauri::generate_context!())
-        .expect("无法启动 Codex Float");
+        .expect("无法启动 CodexFloat");
     app.run(|handle, event| {
         if matches!(event, tauri::RunEvent::Exit) {
             codex::shutdown(handle);

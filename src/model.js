@@ -1,3 +1,4 @@
+import {t} from './i18n.js';
 import jsonpatch from 'fast-json-patch';
 import {imagesOf,generatedImagesOf} from './images.js';
 import {changedFilesOf} from './changed-files.js';
@@ -18,7 +19,7 @@ export function modelDisplayName(model, names = {}) {
 }
 export function applyChange(previous, revision, change) {
   if (change.type === 'snapshot') return { state: change.conversationState, revision: change.revision };
-  if (!previous || change.baseRevision !== revision) throw new Error('消息版本已变化，正在重新同步');
+  if (!previous || change.baseRevision !== revision) throw new Error(t("消息版本已变化，正在重新同步"));
   const patches = (change.patches || []).map(p => ({...p, path: Array.isArray(p.path) ? (p.path.length ? '/' + p.path.map(x=>String(x).replaceAll('~','~0').replaceAll('/','~1')).join('/') : '') : p.path}));
   return { state: patches.reduce(applySharedPatch, previous), revision: change.revision };
 }
@@ -28,13 +29,13 @@ function applySharedPatch(previous, patch) {
     return jsonpatch.applyOperation(previous, patch, true, false).newDocument;
   }
   const keys = patch.path.split('/').slice(1).map(k => k.replaceAll('~1','/').replaceAll('~0','~'));
-  if (keys.some(k => ['__proto__','constructor','prototype'].includes(k))) throw new Error('不安全的消息更新路径');
+  if (keys.some(k => ['__proto__','constructor','prototype'].includes(k))) throw new Error(t("不安全的消息更新路径"));
   const copy = value => Array.isArray(value) ? value.slice() : {...value};
   const next = copy(previous);
   let source = previous, target = next;
   for (const key of keys.slice(0,-1)) {
     if (!source || typeof source !== 'object' || !Object.hasOwn(source,key) || !source[key] || typeof source[key] !== 'object') {
-      throw new Error('消息更新路径不存在，正在重新同步');
+      throw new Error(t("消息更新路径不存在，正在重新同步"));
     }
     target[key] = copy(source[key]);
     source = source[key]; target = target[key];
@@ -52,15 +53,15 @@ export function turnsOf(state) {
 }
 export function messagesOf(state,{toolTimeline=false}={}) {
   const agentHistory=new Map();
-  return turnsOf(state).flatMap((t,turnIndex) => {
-    const items = orderedItems(t),turnKey=t.turnId||t.id||turnIndex;
-    const subagents=subagentMessage(t,items,turnKey,agentHistory);
+  return turnsOf(state).flatMap((entry,turnIndex) => {
+    const items = orderedItems(entry),turnKey=entry.turnId||entry.id||turnIndex;
+    const subagents=subagentMessage(entry,items,turnKey,agentHistory);
     const messages=items.flatMap((i,index)=>{
-     const detail=toolTimeline?toolDetailMessage(i,t,index,turnKey):null;
+     const detail=toolTimeline?toolDetailMessage(i,entry,index,turnKey):null;
      const rendered=(()=>{
      if(subagentItem(i))return subagents&&index===subagents.anchorIndex?[subagents]:[];
-     const app=mcpAppMessage(i,t,state);if(app)return [app];
-     if(['reasoning','todo-list','plan'].includes(i.type)){const message=taskDetailMessage(i,t,items,index,turnKey);return message?[message]:[];}
+     const app=mcpAppMessage(i,entry,state);if(app)return [app];
+     if(['reasoning','todo-list','plan'].includes(i.type)){const message=taskDetailMessage(i,entry,items,index,turnKey);return message?[message]:[];}
      if(!['userMessage','agentMessage','steeringUserMessage','imageGeneration'].includes(i.type))return [];
      const message=i.type==='imageGeneration'?{
       id:i.id,role:'assistant',text:'',images:generatedImagesOf(i)
@@ -68,22 +69,22 @@ export function messagesOf(state,{toolTimeline=false}={}) {
       id:i.id, clientMessageId:i.clientUserMessageId||i.clientId, role:i.type==='agentMessage'?'assistant':'user', phase:i.phase,
       delivery:i.delivery,aeonSentMessage:i.aeonSentMessage,hasStructuredOutput:i.structuredOutput!=null,
       deliveryStatus:i.deliveryStatus,steeringStatus:i.steeringStatus,hookFeedback:i.hookFeedback,heartbeatTrigger:i.heartbeatTrigger,codexDelegation:i.codexDelegation,
-      turnId:t.turnId||t.id,editable:i.type==='userMessage'&&!!(t.turnId||t.id)&&items.find(item=>item.type==='userMessage')===i,
-      forkable:t.status==='completed'&&!!(t.turnId||t.id)&&(i.type==='userMessage'&&items.find(item=>item.type==='userMessage')===i||i.type==='agentMessage'&&items.filter(item=>item.type==='agentMessage').at(-1)===i),
+      turnId:entry.turnId||entry.id,editable:i.type==='userMessage'&&!!(entry.turnId||entry.id)&&items.find(item=>item.type==='userMessage')===i,
+      forkable:entry.status==='completed'&&!!(entry.turnId||entry.id)&&(i.type==='userMessage'&&items.find(item=>item.type==='userMessage')===i||i.type==='agentMessage'&&items.filter(item=>item.type==='agentMessage').at(-1)===i),
       text:i.type==='agentMessage'?i.text:(i.content||i.input||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n'),
       images:imagesOf(i.content||i.input),
-      attachments:attachmentsOf(i),references:i.type==='agentMessage'?referencesOf(i,items):undefined,cwd:t.params?.cwd||state.cwd||state.latestThreadSettings?.cwd,
+      attachments:attachmentsOf(i),references:i.type==='agentMessage'?referencesOf(i,items):undefined,cwd:entry.params?.cwd||state.cwd||state.latestThreadSettings?.cwd,
       pending:i.status==='pending'
     });return (message.text?.trim()||message.images.length||message.attachments?.length)&&!message.text?.trim().startsWith('<external_codex_apps_open_page>')?[message]:[];
      })();
      return detail?[{...detail,id:`tool-call:${turnKey}:${detail.id}`},...rendered]:rendered;
     });
-    const files=changedFilesOf(t);
-    const calls=items.map((item,index)=>toolDetailMessage(item,t,index,turnKey)).filter(Boolean);
+    const files=changedFilesOf(entry);
+    const calls=items.map((item,index)=>toolDetailMessage(item,entry,index,turnKey)).filter(Boolean);
     if(calls.length&&!toolTimeline)messages.push({id:`tool-history:${turnKey}`,type:'toolHistory',role:'assistant',text:'',images:[],calls});
-    if(files.length)messages.push({id:`changed-files:${t.turnId||t.id||items[0]?.id}`,type:'changedFiles',role:'assistant',text:'',files,cwd:t.params?.cwd||state.cwd});
-    const duration=turnDurationMs(t);
-    return messages.map(message=>({...message,turnId:message.turnId||t.turnId||t.id||`turn:${turnIndex}`,turnStatus:t.status,...(duration!==null?{turnDurationMs:duration}:{})}));
+    if(files.length)messages.push({id:`changed-files:${entry.turnId||entry.id||items[0]?.id}`,type:'changedFiles',role:'assistant',text:'',files,cwd:entry.params?.cwd||state.cwd});
+    const duration=turnDurationMs(entry);
+    return messages.map(message=>({...message,turnId:message.turnId||entry.turnId||entry.id||`turn:${turnIndex}`,turnStatus:entry.status,...(duration!==null?{turnDurationMs:duration}:{})}));
   });
 }
 
@@ -104,24 +105,24 @@ export function latestToolDetailOf(state){
   return null;
 }
 export function activityOf(state) {
-  const activeTurns = turnsOf(state).filter(t => t.status === 'inProgress');
+  const activeTurns = turnsOf(state).filter(entry => entry.status === 'inProgress');
   if (!activeTurns.length && state?.threadRuntimeStatus?.type !== 'active') return null;
-  if (state?.requests?.length) return { kind: 'waiting', label: '等待审批 / 回复' };
-  const turnItems = activeTurns.flatMap(t => {
-    if (Array.isArray(t.items)) return t.items;
-    const entities = t.items?.entitiesByKey || {};
-    const keys = t.items?.islands?.flatMap(island => island.entries.map(entry => entry.value));
+  if (state?.requests?.length) return { kind: 'waiting', label: t("等待审批 / 回复") };
+  const turnItems = activeTurns.flatMap(entry => {
+    if (Array.isArray(entry.items)) return entry.items;
+    const entities = entry.items?.entitiesByKey || {};
+    const keys = entry.items?.islands?.flatMap(island => island.entries.map(entry => entry.value));
     return keys ? [...new Set(keys)].map(key => entities[key]).filter(Boolean) : Object.values(entities);
   });
   const latestTool = turnItems.filter(item => toolLabels[item.type]).at(-1);
   const toolTitle = latestTool ? toolTitleText(latestTool,toolLabels[latestTool.type]) : undefined;
-  const activeItems = activeTurns.flatMap(t => {
-    const completed = new Set(Array.isArray(t.completedItemIds) ? t.completedItemIds : Object.entries(t.completedItemIds || {}).filter(([,done]) => done === true).map(([id]) => id));
-    const items = Array.isArray(t.items) ? t.items : Object.values(t.items?.entitiesByKey || {});
+  const activeItems = activeTurns.flatMap(entry => {
+    const completed = new Set(Array.isArray(entry.completedItemIds) ? entry.completedItemIds : Object.entries(entry.completedItemIds || {}).filter(([,done]) => done === true).map(([id]) => id));
+    const items = Array.isArray(entry.items) ? entry.items : Object.values(entry.items?.entitiesByKey || {});
     return items.filter(i => !completed.has(i.id));
   });
   if (activeItems.some(i => i.type === 'contextCompaction' && i.completed === false)) {
-    return { kind: 'compacting', label: '正在压缩上下文' };
+    return { kind: 'compacting', label: t("正在压缩上下文") };
   }
   const running = activeItems.filter(i => toolLabels[i.type] && i.status === 'inProgress');
   if (running.length) {
@@ -129,5 +130,5 @@ export function activityOf(state) {
     return { kind: 'tool', label: toolLabels[latest.type], toolTitle };
   }
   // A running turn without an active tool does not prove that reasoning is happening.
-  return { kind: 'thinking', label: '思考', ...(toolTitle ? {toolTitle} : {}) };
+  return { kind: 'thinking', label: t("思考"), ...(toolTitle ? {toolTitle} : {}) };
 }

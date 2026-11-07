@@ -1,7 +1,14 @@
 .windows-window { height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; border: 1px solid var(--window-border); border-radius: var(--window-radius, 8px); background: var(--window-bg); }
 .windows-window > .chat-panel { display:flex; flex-direction:column; height:100%; min-height:0; }
 .windows-window > .chat-panel[hidden] { display:none; }
+.windows-window[data-restore-phase="preparing"] > .chat-panel { visibility: hidden; }
+.windows-window[data-restore-phase="appearing"] > .chat-panel { animation: windows-restore-pop 180ms cubic-bezier(.16, 1, .3, 1) both; transform-origin: top right; }
+@keyframes windows-restore-pop {
+  from { opacity: 0; transform: translateY(6px) scale(.975); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 .windows-window.compact { border:0; border-radius:0; background:transparent; overflow:visible; }
+.windows-window.compact .mini-status { position: absolute; top: 0; right: 0; width: 52px; height: 52px; }
 .windows-window.compact .mini-frame { fill: var(--window-bg); }
 .windows-window.compact .mini-icon { filter: drop-shadow(0 0 1px #000); }
 @media (forced-colors: active) {
@@ -23,7 +30,7 @@
   }
 }
 .windows-window .browser-brand { display: flex; align-items: center; gap: 4px; padding: 12px 16px 0; font-size: 14px; font-weight: 600; }
-.windows-window .browser-brand img { width: 16px; height: 16px; filter: var(--brand-filter); }
+.windows-window .browser-brand img { width: 16px; height: 16px; }
 .windows-window .browser-brand .settings-control { margin-left: auto; }
 .windows-window .settings-button[hidden] { display: none; }
 @media (forced-colors: none) {
@@ -41,6 +48,6 @@
     backdrop-filter: blur(20px);
   }
 }
-.windows-titlebar { display: flex; align-items: center; gap: 8px; padding: 0 12px; height: var(--windows-titlebar-height); flex: none; font-size: 12px; pointer-events: none; user-select: none; }
-.windows-titlebar img { width: 16px; height: 16px; filter: var(--brand-filter); }
+.windows-titlebar { display: flex; align-items: center; gap: 4px; padding: 0 12px; height: var(--windows-titlebar-height); flex: none; font-size: 12px; pointer-events: none; user-select: none; }
+.windows-titlebar img { width: 16px; height: 16px; }
 .windows-window > .chat-panel > .settings-control > .settings-panel { top: calc(8px + var(--windows-titlebar-height)); max-height: calc(100vh - 16px - var(--windows-titlebar-height)); overflow-y: auto; }

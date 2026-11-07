@@ -1,3 +1,4 @@
+import {t} from './i18n.js';
 export function quotaWindows(data) {
  const buckets=data?.rateLimitsByLimitId;
  const limits=buckets&&Object.keys(buckets).length?Object.entries(buckets):data?.rateLimits?[['codex',data.rateLimits]]:[];
@@ -5,7 +6,7 @@ export function quotaWindows(data) {
   const window=limit?.[slot];
   if(!window||!Number.isFinite(window.usedPercent))return [];
   const minutes=window.windowDurationMins;
-  const label=minutes===10080?'每周':Number.isFinite(minutes)&&minutes>0?minutes%60===0?`${minutes/60}小时`:`${minutes}分钟`:slot==='primary'?'短期':'长期';
+  const label=minutes===10080?t("每周"):Number.isFinite(minutes)&&minutes>0?minutes%60===0?t("{0}小时",[minutes/60]):t("{0}分钟",[minutes]):slot==='primary'?t("短期"):t("长期");
   return [{id:`${id}-${slot}`,bucket:limit.limitName||id,label,windowMinutes:minutes,remaining:Math.max(0,Math.min(100,100-window.usedPercent)),resetsAt:Number.isFinite(window.resetsAt)?window.resetsAt:null}];
  }));
 }

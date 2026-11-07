@@ -1,3 +1,4 @@
+import {t,useLanguage} from './i18n.js';
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {Plus,X,File,Folder,Code,Globe,Monitor,Cpu,Blocks,RefreshCw,MessageSquare,Pause,Play} from 'lucide-react';
@@ -24,27 +25,32 @@ export function useContextDraft(scope){
  return {items,add:added=>update(mergeContexts(current.current,added)),remove:key=>update(current.current.filter(item=>contextKey(item)!==key)),clear:()=>update([]),consume:()=>update(current.current.filter(item=>item.kind==='browser'&&item.browserWindowId)),restore:old=>update(mergeContexts(old,current.current,Infinity)),toggleBrowser:key=>update(current.current.map(item=>contextKey(item)===key?{...item,autoUpdate:!item.autoUpdate}:item))};
 }
 export function ContextChips({items,onRemove,onToggleBrowser}){
- return !!items.length&&<div className="context-chips" aria-label="待发送上下文">{items.map(item=>{const Icon=icons[item.kind]||File;return <div className="context-chip" key={contextKey(item)} title={[item.source,item.path||item.url,item.description,item.content?.slice(0,500)].filter(Boolean).join('\n')}><Icon size={13}/><span>{item.label}</span><small>{item.browserUnavailable?'网页不可用':item.kind==='browser'?browserReadStatus(item)+(item.autoUpdate?' · 跟随':''):contextLabels[item.kind]}</small>{item.browserWindowId&&onToggleBrowser&&<button type="button" aria-label={item.autoUpdate?'暂停网页自动更新':'恢复网页自动更新'} title={item.autoUpdate?'固定当前网页内容':'跟随此窗口当前标签页'} onClick={()=>onToggleBrowser(contextKey(item))}>{item.autoUpdate?<Pause size={12}/>:<Play size={12}/>}</button>}<button type="button" aria-label={`移除上下文 ${item.label}`} onClick={()=>onRemove(contextKey(item))}><X size={12}/></button></div>;})}</div>;
+ useLanguage();
+ return !!items.length&&<div className="context-chips" aria-label={t("待发送上下文")}>{items.map(item=>{const Icon=icons[item.kind]||File;return <div className="context-chip" key={contextKey(item)} title={[item.source,item.path||item.url,item.description,item.content?.slice(0,500)].filter(Boolean).join('\n')}><Icon size={13}/><span>{item.label}</span><small>{item.browserUnavailable?t("网页不可用"):item.kind==='browser'?browserReadStatus(item)+(item.autoUpdate?t(" · 跟随"):''):t(contextLabels[item.kind])}</small>{item.browserWindowId&&onToggleBrowser&&<button type="button" aria-label={item.autoUpdate?t("暂停网页自动更新"):t("恢复网页自动更新")} title={item.autoUpdate?t("固定当前网页内容"):t("跟随此窗口当前标签页")} onClick={()=>onToggleBrowser(contextKey(item))}>{item.autoUpdate?<Pause size={12}/>:<Play size={12}/>}</button>}<button type="button" aria-label={t("移除上下文 {0}",[item.label])} onClick={()=>onRemove(contextKey(item))}><X size={12}/></button></div>;})}</div>;
 }
 export function ContextButton({onClick,disabled,open}){
- return <button type="button" className="icon-button attachment-button" title="添加上下文（@ 搜索上下文，$ 搜索技能）" aria-label="添加上下文" aria-expanded={open} aria-haspopup="dialog" disabled={disabled} onClick={onClick}><Plus size={17}/></button>;
+ useLanguage();
+ return <button type="button" className="icon-button attachment-button context-button" title={t("添加上下文（@ 搜索上下文，$ 搜索技能）")} aria-label={t("添加上下文")} aria-expanded={open} aria-haspopup="dialog" disabled={disabled} onClick={onClick}><Plus size={17}/></button>;
 }
 function SnippetEditor({initial='',onAdd,onClose}){
- const [label,setLabel]=useState('代码片段'),[content,setContent]=useState(initial),[path,setPath]=useState(''),[language,setLanguage]=useState(''),[line,setLine]=useState('');
- return <PreviewDialog title="添加代码片段" className="snippet-dialog" onClose={onClose}><form className="snippet-form" onSubmit={event=>{event.preventDefault();if(!content.trim())return;onAdd({kind:'snippet',label:label.trim()||'代码片段',content,path:path.trim(),language,startLine:line?Number(line):null,source:'手动添加'});onClose();}}>
-  <label>标题<input value={label} onChange={event=>setLabel(event.target.value)} maxLength={100}/></label>
-  <label>内容<textarea autoFocus aria-label="代码片段内容" required value={content} maxLength={32000} onChange={event=>setContent(event.target.value)} placeholder="粘贴代码或选中文字…"/></label>
-  <label>来源路径（可选）<input value={path} onChange={event=>setPath(event.target.value)} placeholder="本地文件的绝对路径"/></label>
-  <div className="snippet-options"><label>语言<input value={language} onChange={event=>setLanguage(event.target.value)} placeholder="如 js、python" maxLength={32}/></label><label>起始行<input type="number" min="1" max="10000000" step="1" value={line} onChange={event=>setLine(event.target.value)}/></label></div>
-  <button type="submit" disabled={!content.trim()}>添加片段</button>
+ useLanguage();
+ const [label,setLabel]=useState(t("代码片段")),[content,setContent]=useState(initial),[path,setPath]=useState(''),[language,setLanguage]=useState(''),[line,setLine]=useState('');
+ return <PreviewDialog title={t("添加代码片段")} className="snippet-dialog" onClose={onClose}><form className="snippet-form" onSubmit={event=>{event.preventDefault();if(!content.trim())return;onAdd({kind:'snippet',label:label.trim()||t("代码片段"),content,path:path.trim(),language,startLine:line?Number(line):null,source:t("手动添加")});onClose();}}>
+  <label>{t("标题")}<input value={label} onChange={event=>setLabel(event.target.value)} maxLength={100}/></label>
+  <label>{t("内容")}<textarea autoFocus aria-label={t("代码片段内容")} required value={content} maxLength={32000} onChange={event=>setContent(event.target.value)} placeholder={t("粘贴代码或选中文字…")}/></label>
+  <label>{t("来源路径（可选）")}<input value={path} onChange={event=>setPath(event.target.value)} placeholder={t("本地文件的绝对路径")}/></label>
+  <div className="snippet-options"><label>{t("语言")}<input value={language} onChange={event=>setLanguage(event.target.value)} placeholder={t("如 js、python")} maxLength={32}/></label><label>{t("起始行")}<input type="number" min="1" max="10000000" step="1" value={line} onChange={event=>setLine(event.target.value)}/></label></div>
+  <button type="submit" disabled={!content.trim()}>{t("添加片段")}</button>
  </form></PreviewDialog>;
 }
 function BrowserEditor({onAdd,onClose}){
+ useLanguage();
  const [url,setUrl]=useState(''),[label,setLabel]=useState(''),[content,setContent]=useState('');
- return <PreviewDialog title="添加网页上下文" className="snippet-dialog" onClose={onClose}><form className="snippet-form" onSubmit={event=>{event.preventDefault();let parsed;try{parsed=new URL(url);}catch{return;}if(!['http:','https:'].includes(parsed.protocol))return;onAdd({kind:'browser',label:label.trim()||parsed.hostname,url:parsed.href,content,source:'手动添加'});onClose();}}><label>网页地址<input type="url" required autoFocus value={url} onChange={event=>setUrl(event.target.value)} placeholder="https://…" pattern="https?://.*"/></label><label>标题（可选）<input value={label} onChange={event=>setLabel(event.target.value)} maxLength={200}/></label><label>选中文字（可选）<textarea aria-label="网页选中文字" value={content} onChange={event=>setContent(event.target.value)} maxLength={32000} placeholder="粘贴从网页选中的内容…"/></label><button type="submit">添加网页</button></form></PreviewDialog>;
+ return <PreviewDialog title={t("添加网页上下文")} className="snippet-dialog" onClose={onClose}><form className="snippet-form" onSubmit={event=>{event.preventDefault();let parsed;try{parsed=new URL(url);}catch{return;}if(!['http:','https:'].includes(parsed.protocol))return;onAdd({kind:'browser',label:label.trim()||parsed.hostname,url:parsed.href,content,source:t("手动添加")});onClose();}}><label>{t("网页地址")}<input type="url" required autoFocus value={url} onChange={event=>setUrl(event.target.value)} placeholder="https://…" pattern="https?://.*"/></label><label>{t("标题（可选）")}<input value={label} onChange={event=>setLabel(event.target.value)} maxLength={200}/></label><label>{t("选中文字（可选）")}<textarea aria-label={t("网页选中文字")} value={content} onChange={event=>setContent(event.target.value)} maxLength={32000} placeholder={t("粘贴从网页选中的内容…")}/></label><button type="submit">{t("添加网页")}</button></form></PreviewDialog>;
 }
 
 export function ContextPicker({scope,cwd,roots=[],mention,open,onClose,onAdd,onError,initialSelection='',onRows,onSelectRef,activeIndex=0}){
+ useLanguage();
  const [category,setCategory]=useState('file'),[query,setQuery]=useState(''),[files,setFiles]=useState([]),[catalog,setCatalog]=useState({skills:[],plugins:[]}),[pages,setPages]=useState([]),[ide,setIde]=useState([]),[loading,setLoading]=useState(false),[error,setError]=useState(''),[snippet,setSnippet]=useState(false),[revision,setRevision]=useState(0),[catalogLoading,setCatalogLoading]=useState(false);
  const [browserEditor,setBrowserEditor]=useState(false);
  const [threads,setThreads]=useState([]);
@@ -69,7 +75,7 @@ export function ContextPicker({scope,cwd,roots=[],mention,open,onClose,onAdd,onE
  useEffect(()=>{setQuery('');setCategory('file');setSnippet(false);setBrowserEditor(false);setFiles([]);setPages([]);setIde([]);setThreads([]);setLoading(false);setCatalogLoading(false);setCatalog({skills:[],plugins:[]});cachedCatalog.current=null;catalogGeneration.current++;generation.current++;},[scope,cwd]);
  useEffect(()=>{
   if(!visible)return;
-  const onPointer=event=>{if(!root.current?.contains(event.target)&&!event.target.closest('[aria-label="添加上下文"],#prompt-input'))onClose();};
+  const onPointer=event=>{if(!root.current?.contains(event.target)&&!event.target.closest('.context-button,#prompt-input'))onClose();};
   const onKey=event=>{if(event.key==='Escape'){event.preventDefault();onClose();}};
   const onFocus=event=>{if(event.target.closest?.('.settings-panel'))onClose();};
   document.addEventListener('focusin',onFocus);document.addEventListener('pointerdown',onPointer);document.addEventListener('keydown',onKey);
@@ -98,7 +104,7 @@ export function ContextPicker({scope,cwd,roots=[],mention,open,onClose,onAdd,onE
      const [fileResult,threadResult]=await Promise.allSettled([invoke('search_context_files',{roots:JSON.parse(rootsKey),query:activeQuery}),invoke('search_context_threads',{query:activeQuery,excludeThreadId:scope})]);
      if(id!==generation.current||target!==scopeRef.current)return;
      setFiles(fileResult.status==='fulfilled'?fileResult.value:[]);setThreads(threadResult.status==='fulfilled'?threadResult.value:[]);
-     if(fileResult.status==='rejected'||threadResult.status==='rejected')setError('部分上下文暂时无法读取，请刷新或切换分类。');
+     if(fileResult.status==='rejected'||threadResult.status==='rejected')setError(t("部分上下文暂时无法读取，请刷新或切换分类。"));
      return;
     }
     else result=await invoke('search_context_files',{roots:JSON.parse(rootsKey),query:activeQuery});
@@ -133,17 +139,17 @@ export function ContextPicker({scope,cwd,roots=[],mention,open,onClose,onAdd,onE
  useEffect(()=>{if(onSelectRef)onSelectRef.current=index=>{if(rows[index])add([rows[index]]);};return()=>{if(onSelectRef)onSelectRef.current=null;};},[rows,add,onSelectRef]);
  const refresh=()=>{cachedCatalog.current=null;setRevision(value=>value+1);};
  return <>
-  {visible&&<div className="context-picker" data-native-glass={nativeGlass||undefined} role="dialog" aria-label="添加上下文" ref={root}>
-   <div className="context-picker-heading"><strong>{mention?.trigger==='$'?'选择技能':mention?'选择上下文':'添加上下文'}</strong><button type="button" aria-label="刷新上下文" onClick={refresh}><RefreshCw size={13}/></button><button type="button" aria-label="关闭上下文菜单" onClick={onClose}><X size={14}/></button></div>
-   {mention?.trigger!=='$'&&<div className="context-categories" aria-label="上下文类型">{Object.entries(contextLabels).map(([kind,name])=><button key={kind} type="button" aria-pressed={category===kind} onClick={()=>{setError('');if(kind==='snippet')setSnippet(true);else{setQuery('');setCategory(kind);}}}>{name}</button>)}</div>}
-   {!mention&&<input className="context-search" aria-label="搜索上下文" placeholder="搜索名称或路径…" value={query} onChange={event=>setQuery(event.target.value)}/>}
-   {activeCategory==='browser'&&<><p className="context-note">自动读取各窗口当前网页正文。添加后跟随该窗口切换的标签页，约每 2 秒更新；可在上下文标签上暂停。正文上限可在设置中调整；未加载的内容无法读取。</p><button type="button" className="context-manual" onClick={()=>setBrowserEditor(true)}>手动添加网页与选中文字</button></>}
-   {activeCategory==='ide'&&<p className="context-note">从已连接的 Codex IDE 扩展读取当前文件、打开文件及选中代码。</p>}
-   {activeCategory==='thread'&&<p className="context-note">选择其他对话作为参考，不会切换当前聊天。发送后由 Codex 按需读取对话内容。</p>}
-   {error&&<p className="context-error" role="alert">{error}</p>}
-   {(loading||catalogLoading)&&<p className="context-note" role="status">正在读取上下文…</p>}
-   <div className="context-results" id="context-suggestions" role="listbox" aria-label="上下文候选项">{rows.map((item,index)=>{const Icon=icons[item.kind]||File;return <button type="button" id={`context-option-${index}`} role="option" aria-selected={!!mention&&index===activeIndex} key={contextKey(item)} data-context-index={index} onClick={()=>add([item])} title={[detail(item),item.content?.slice(0,700)].filter(Boolean).join('\n')}><Icon size={14}/><span><strong>{item.label}</strong><small>{detail(item)}</small></span><em>{item.kind==='browser'?browserReadStatus(item):contextLabels[item.kind]}</em></button>;})}</div>
-   {!rows.length&&!loading&&!catalogLoading&&!error&&<p className="context-note">{activeCategory==='browser'?'未读取到网页。请在 Chrome、Edge、Brave 或 Firefox 中打开网页后刷新，也可手动添加网址与选中文字。':activeCategory==='file'||activeCategory==='folder'||activeCategory==='all'?'没有匹配项。':'没有可添加的上下文。'}</p>}
+  {visible&&<div className="context-picker" data-native-glass={nativeGlass||undefined} role="dialog" aria-label={t("添加上下文")} ref={root}>
+   <div className="context-picker-heading"><strong>{mention?.trigger==='$'?t("选择技能"):mention?t("选择上下文"):t("添加上下文")}</strong><button type="button" aria-label={t("刷新上下文")} onClick={refresh}><RefreshCw size={13}/></button><button type="button" aria-label={t("关闭上下文菜单")} onClick={onClose}><X size={14}/></button></div>
+   {mention?.trigger!=='$'&&<div className="context-categories" aria-label={t("上下文类型")}>{Object.entries(contextLabels).map(([kind,name])=><button key={kind} type="button" aria-pressed={category===kind} onClick={()=>{setError('');if(kind==='snippet')setSnippet(true);else{setQuery('');setCategory(kind);}}}>{t(name)}</button>)}</div>}
+   {!mention&&<input className="context-search" aria-label={t("搜索上下文")} placeholder={t("搜索名称或路径…")} value={query} onChange={event=>setQuery(event.target.value)}/>}
+   {activeCategory==='browser'&&<><p className="context-note">{t("自动读取各窗口当前网页正文。添加后跟随该窗口切换的标签页，约每 2 秒更新；可在上下文标签上暂停。正文上限可在设置中调整；未加载的内容无法读取。")}</p><button type="button" className="context-manual" onClick={()=>setBrowserEditor(true)}>{t("手动添加网页与选中文字")}</button></>}
+   {activeCategory==='ide'&&<p className="context-note">{t("从已连接的 Codex IDE 扩展读取当前文件、打开文件及选中代码。")}</p>}
+   {activeCategory==='thread'&&<p className="context-note">{t("选择其他对话作为参考，不会切换当前聊天。发送后由 Codex 按需读取对话内容。")}</p>}
+   {error&&<p className="context-error" role="alert">{t(error)}</p>}
+   {(loading||catalogLoading)&&<p className="context-note" role="status">{t("正在读取上下文…")}</p>}
+   <div className="context-results" id="context-suggestions" role="listbox" aria-label={t("上下文候选项")}>{rows.map((item,index)=>{const Icon=icons[item.kind]||File;return <button type="button" id={`context-option-${index}`} role="option" aria-selected={!!mention&&index===activeIndex} key={contextKey(item)} data-context-index={index} onClick={()=>add([item])} title={[detail(item),item.content?.slice(0,700)].filter(Boolean).join('\n')}><Icon size={14}/><span><strong>{item.label}</strong><small>{detail(item)}</small></span><em>{item.kind==='browser'?browserReadStatus(item):t(contextLabels[item.kind])}</em></button>;})}</div>
+   {!rows.length&&!loading&&!catalogLoading&&!error&&<p className="context-note">{activeCategory==='browser'?t("未读取到网页。请在 Chrome、Edge、Brave 或 Firefox 中打开网页后刷新，也可手动添加网址与选中文字。"):activeCategory==='file'||activeCategory==='folder'||activeCategory==='all'?t("没有匹配项。"):t("没有可添加的上下文。")}</p>}
    {catalog.warnings?.map(warning=><p className="context-note" key={warning}>{warning}</p>)}
   </div>}
   {snippet&&<SnippetEditor initial={initialSelection} onAdd={item=>add([item])} onClose={()=>setSnippet(false)}/>}
