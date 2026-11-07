@@ -43,9 +43,9 @@ jobs:
       - name: Build Windows app and installer
         if: runner.os == 'Windows'
         run: npm run tauri -- build --bundles nsis
-      - name: Build macOS app and disk image
+      - name: Build macOS disk image
         if: runner.os == 'macOS'
-        run: npm run build:macos -- --bundles app,dmg
+        run: npm run build:macos -- --bundles dmg
       - name: Package Windows downloads
         if: runner.os == 'Windows'
         shell: pwsh
@@ -57,11 +57,10 @@ jobs:
           $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe
           if (@($installer).Count -ne 1) { throw 'Expected exactly one Windows installer' }
           Copy-Item -LiteralPath $installer.FullName -Destination artifacts/CodexFloat-windows-x64-setup.exe
-      - name: Preserve macOS app permissions in an archive
+      - name: Package macOS disk image
         if: runner.os == 'macOS'
         run: |
           mkdir -p artifacts
-          ditto -c -k --sequesterRsrc --keepParent "src-tauri/target/release/bundle/macos/CodexFloat.app" "artifacts/${{ matrix.artifact }}.zip"
           images=(src-tauri/target/release/bundle/dmg/*.dmg)
           test "${#images[@]}" -eq 1
           cp "${images[0]}" "artifacts/${{ matrix.artifact }}.dmg"
@@ -95,9 +94,7 @@ jobs:
           expected=(
             CodexFloat-windows-x64-portable.zip
             CodexFloat-windows-x64-setup.exe
-            codex-float-macos-arm64.zip
             codex-float-macos-arm64.dmg
-            codex-float-macos-x64.zip
             codex-float-macos-x64.dmg
           )
           for file in "${expected[@]}"; do test -s "artifacts/$file"; done
