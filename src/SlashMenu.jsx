@@ -1,3 +1,4 @@
+import {useSettingsGlass} from './useSettingsGlass';
 import {t,useLanguage} from './i18n.js';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
@@ -13,6 +14,7 @@ const commandIcons={model:SlidersHorizontal,fast:Zap,permissions:Shield,skills:C
 
 export function SlashMenu({scope,cwd,token,busy,disabled,onClose,onSelect,onRows,onSelectRef,activeIndex}){
  const root=useRef(),generation=useRef(0),[catalog,setCatalog]=useState(null),[loading,setLoading]=useState(false),[error,setError]=useState(''),[revision,setRevision]=useState(0);
+ const nativeGlass=useSettingsGlass(root,!!token);
  useEffect(()=>{generation.current++;setCatalog(null);setError('');setLoading(false);},[scope,cwd]);
  useEffect(()=>{
   if(!token||catalog)return;
@@ -35,7 +37,7 @@ export function SlashMenu({scope,cwd,token,busy,disabled,onClose,onSelect,onRows
   return()=>{window.removeEventListener('resize',update);document.removeEventListener('pointerdown',pointer);document.removeEventListener('keydown',key);};
  },[!!token,onClose]);
  if(!token)return null;
- return <div ref={root} className="context-picker slash-menu" role="dialog" aria-label={t("斜杠命令和技能")}>
+ return <div ref={root} data-native-glass={nativeGlass||undefined} className="context-picker slash-menu" role="dialog" aria-label={t("斜杠命令和技能")}>
   <div className="context-picker-heading"><strong>{t("命令与技能")}</strong><button type="button" aria-label={t("刷新技能")} disabled={loading} onClick={()=>{setCatalog(null);setRevision(value=>value+1);}}><RefreshCw size={13} className={loading?'spin':''}/></button><button type="button" aria-label={t("关闭命令菜单")} onClick={onClose}><X size={14}/></button></div>
   <div className="context-results" id="slash-suggestions" role="listbox" aria-label={t("命令候选项")}>{rows.map((row,index)=>{const Icon=row.kind==='skill'?Cpu:commandIcons[row.id]||Info;return <button type="button" role="option" id={`slash-option-${index}`} aria-selected={index===activeIndex} aria-disabled={row.disabled||disabled} data-command-index={index} key={`${row.kind}:${row.skill?.path||row.id}`} disabled={row.disabled||disabled} onClick={()=>onSelect(row)}><Icon size={14}/><span><strong>/{row.id}<b>{row.kind==='command'?t(row.title):''}</b></strong><small>{row.disabled?t("任务结束后可用"):(row.kind==='command'?t(row.description):row.description)}</small></span><em>{row.kind==='skill'?t("技能"):t("命令")}</em></button>;})}</div>
   {loading&&<p className="context-note" role="status">{t("正在读取技能…")}</p>}

@@ -1,3 +1,4 @@
+import {useSettingsGlass} from './useSettingsGlass';
 import {t,useLanguage} from './i18n.js';
 import React,{useLayoutEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
@@ -33,7 +34,8 @@ export function PreviewDialog({title,onClose,children,className=''}){
    if(parent){const body=bodyOf(parent);if(body)body.scrollTop=parent.scrollTop;}
   };
  },[]);
- return createPortal(<dialog role="dialog" className={'file-preview '+className} ref={dialog} aria-label={title} onCancel={e=>{e.preventDefault();onClose();}}>
+ const nativeGlass=useSettingsGlass(dialog,true);
+ return createPortal(<dialog data-native-glass={nativeGlass||undefined} role="dialog" className={'file-preview '+className} ref={dialog} aria-label={title} onCancel={e=>{e.preventDefault();onClose();}}>
   <header><strong ref={heading} tabIndex={-1} title={title}>{title}</strong><button type="button" onClick={onClose} aria-label={hasParent?t("返回上一层"):t("关闭预览")}>{hasParent?t("返回"):t("关闭")}</button></header>
   <div className="file-preview-body">{children}</div>
  </dialog>,document.body);

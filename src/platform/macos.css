@@ -15,7 +15,27 @@
 :root[data-window-platform="macos"] .thread-selector,
 :root[data-window-platform="macos"] .sync-button { border-radius: 9px; }
 :root[data-window-platform="macos"] .thread-popup { top: calc(100% + 6px); padding: 6px; border-radius: 12px; }
+:root[data-window-platform="macos"] .thread-popup[data-native-glass="true"] { border-radius: 16px; border-color: transparent; box-shadow: none; background: var(--window-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root[data-window-platform="macos"] .thread-option { border-radius: 6px; }
 :root[data-window-platform="macos"] { --dialog-top: calc(var(--native-titlebar-height, 52px) + 8px); }
 :root[data-window-platform="macos"] .composer { border-radius: var(--window-radius, 8px); }
 :root[data-window-platform="macos"] .model-settings-popup { --model-popup-bg: var(--window-bg); }
+
+.macos-window.compact > .mini-status { align-self: flex-end; flex-shrink: 0; }
+.macos-window[data-restore-phase="preparing"] > .chat-panel { visibility: hidden; }
+.macos-window[data-restore-phase="appearing"] > .chat-panel { animation: macos-restore-appear 100ms ease-out both; }
+@keyframes macos-restore-appear { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .macos-window[data-restore-phase="appearing"] > .chat-panel { animation: none; }
+}
+
+/* All popup surfaces use the same native glass and theme tint as Settings. */
+:root[data-window-platform="macos"] :is(.model-settings-popup, .context-picker, .file-preview, .mcp-app-card.expanded, .rich-preview.expanded)[data-native-glass="true"] {
+ border-radius: 16px;
+ border-color: transparent;
+ box-shadow: none;
+ background: var(--window-bg);
+ -webkit-backdrop-filter: none;
+ backdrop-filter: none;
+}
+:root[data-window-platform="macos"] :is(.mcp-app-card, .rich-preview)[data-native-glass="true"]::backdrop { background: transparent; }

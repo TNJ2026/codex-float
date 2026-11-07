@@ -1,3 +1,4 @@
+import {useSettingsGlass} from './useSettingsGlass';
 import {t,useLanguage} from './i18n.js';
 import React,{useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
@@ -32,7 +33,8 @@ export function RichPreview({kind,code,complete=true}){
  useEffect(()=>{if(ready)frame.current?.contentWindow?.postMessage({type:'rich/context',theme:latestTheme.current,expanded},'*');},[expanded,ready]);
  useLayoutEffect(()=>{const dialog=root.current;if(!dialog)return;if(expanded){dialog.close();dialog.showModal();}else if(expandedBefore.current){dialog.close();if(typeof dialog.show==='function')dialog.show();else dialog.setAttribute('open','');}expandedBefore.current=expanded;},[expanded]);
  async function copy(){try{await copyText(code);setCopied(true);setTimeout(()=>setCopied(false),1500);}catch(error){setError(String(error.message||error));}}
- return <dialog open ref={root} className={'rich-preview'+(expanded?' expanded':'')} role={expanded?'dialog':'group'} aria-label={label} aria-modal={expanded||undefined} onCancel={event=>{event.preventDefault();setExpanded(false);}}>
+ const nativeGlass=useSettingsGlass(root,expanded);
+ return <dialog open data-native-glass={nativeGlass||undefined} ref={root} className={'rich-preview'+(expanded?' expanded':'')} role={expanded?'dialog':'group'} aria-label={label} aria-modal={expanded||undefined} onCancel={event=>{event.preventDefault();setExpanded(false);}}>
   <header><Icon size={14}/><strong>{label}</strong><button type="button" className="rich-copy" aria-label={copied?t("代码已复制"):t("复制代码")} onClick={copy}>{copied?<Check size={12}/>:<Copy size={12}/>}</button>{page&&<button type="button" aria-label={expanded?t("收起预览"):t("放大预览")} onClick={()=>setExpanded(value=>!value)}>{expanded?<Minimize2 size={12}/>:<Maximize2 size={12}/>}</button>}</header>
   {!complete?<p className="rich-status">{t("等待代码块生成完成…")}</p>:!running?<button type="button" className="rich-run" onClick={()=>setRunning(true)}>{t("预览 HTML")}</button>:!page&&!error?<p className="rich-status">{visible?t("正在准备预览…"):t("滚动到此处加载预览")}</p>:null}
   {page&&<iframe ref={frame} title={label} src={page.url} sandbox="allow-scripts" referrerPolicy="no-referrer" aria-busy={!ready} style={{height:expanded?'100%':height,pointerEvents:ready?'auto':'none'}}/>}

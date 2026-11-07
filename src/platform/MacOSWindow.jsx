@@ -14,7 +14,7 @@ function applyTitlebarHeight(height){
 
 export function MacOSWindow(){
  const [settingsOpenRequest,setSettingsOpenRequest]=useState(0);
- const {compact,status,changeCompact,setWindowError,settingsProps,sessionProps}=useWindowSession();
+ const {compact,status,restorePhase,changeCompact,setWindowError,settingsProps,sessionProps}=useWindowSession();
  const enterCompact=useRef(null);
  enterCompact.current=()=>changeCompact(true);
 
@@ -45,7 +45,7 @@ export function MacOSWindow(){
   };
  },[setWindowError]);
 
- return <main className={'macos-window'+(compact?' compact':'')}>
+ return <main className={'macos-window'+(compact?' compact':'')} data-restore-phase={restorePhase||undefined}>
   {compact&&<MiniStatus status={status} onRestore={()=>changeCompact(false)} onError={setWindowError}/>}
   <div className="chat-panel" hidden={compact}>
    <Settings nativeToolbar openRequest={settingsOpenRequest} available={!compact} {...settingsProps}/>

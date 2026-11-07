@@ -1,3 +1,4 @@
+import {useSettingsGlass} from './useSettingsGlass';
 import {t,useLanguage} from './i18n.js';
 import React,{useEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
@@ -13,6 +14,7 @@ export function ModelPicker({threadId,model,effort,names={},disabled,busy,onAppl
  const [saved,setSaved]=useState(false);
  const [adjusting,setAdjusting]=useState(false);
  const button=useRef(),popup=useRef(),scope=useRef(threadId),openRef=useRef(open),loadId=useRef(0),saveLock=useRef(false),callbacks=useRef({onApplied,onError,onSavingChange});
+ const nativeGlass=useSettingsGlass(popup,open&&!!position.width);
  scope.current=threadId;openRef.current=open;callbacks.current={onApplied,onError,onSavingChange};
  useEffect(()=>{setOpen(false);setBase(null);setError('');setSaved(false);setAdjusting(false);loadId.current++;},[threadId]);
  async function load(forceReload=false){
@@ -65,7 +67,7 @@ export function ModelPicker({threadId,model,effort,names={},disabled,busy,onAppl
  }
  return <>
   <button type="button" ref={button} className="model-picker-button" aria-label={t("选择模型与推理强度")} aria-haspopup="dialog" aria-expanded={open} aria-controls={open?'model-settings-popup':undefined} disabled={disabled||saving} title={saving?t("正在保存模型设置…"):disabled?t("连接聊天后选择模型与推理强度"):`${modelDisplayName(model,names)||t("模型")} · ${effortLabel(effort)}`} onClick={()=>setOpen(value=>!value)}><span className="model-name">{modelDisplayName(model,names)||t("等待模型信息")}</span><small>{saving?t("保存中"):effortLabel(effort)}</small><ChevronDown size={11}/></button>
-  {open&&createPortal(<div id="model-settings-popup" className="model-settings-popup" style={position} role="dialog" aria-label={t("模型与推理强度")} ref={popup} onKeyDown={keyboard}>
+  {open&&createPortal(<div id="model-settings-popup" data-native-glass={nativeGlass||undefined} className="model-settings-popup" style={position} role="dialog" aria-label={t("模型与推理强度")} ref={popup} onKeyDown={keyboard}>
    <div className="model-popup-heading"><strong>{t("模型与推理强度")}</strong><button type="button" aria-label={t("刷新模型列表")} disabled={loading||saving||adjusting} onClick={()=>load(true)}><RefreshCw size={13} className={loading?'spin':''}/></button><button type="button" aria-label={t("关闭模型设置")} onClick={()=>setOpen(false)}><X size={14}/></button></div>
    {loading?<p className="model-popup-note" role="status">{t("正在读取可用模型…")}</p>:<>
     <div className="model-options" role="listbox" aria-label={t("可用模型")}>{models.map(entry=><button type="button" role="option" aria-selected={selected===entry.model} key={entry.model} disabled={saving} title={entry.description} onClick={()=>{if(entry.model!==selected)save(entry.model,effortForModel(entry,reasoning));}}><span>{modelDisplayName(entry.model,{...names,[entry.model]:entry.displayName||names[entry.model]})}</span>{selected===entry.model&&<Check size={13}/>}</button>)}</div>

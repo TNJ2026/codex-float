@@ -2,11 +2,14 @@ import {t,useLanguage} from './i18n.js';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {MessageSquare, ChevronDown, Check, Folder} from 'lucide-react';
 import {groupThreads} from './thread-groups';
+import {useSettingsGlass} from './useSettingsGlass';
 
 function WebThreadPicker({threads, value, disabled, onChange,id='thread-picker'}) {
 
  const [open,setOpen]=useState(false),[active,setActive]=useState(0);
  const root=useRef(null),trigger=useRef(null),list=useRef(null),search=useRef({text:'',at:0});
+ const mode=document.documentElement.dataset.windowPlatform==='macos'?document.documentElement.dataset.nativeBackground:undefined;
+ const nativeGlass=useSettingsGlass(list,open,mode);
  const language=useLanguage();
  const groups=useMemo(()=>groupThreads(threads),[threads,language]);
  const choices=useMemo(()=>groups.flatMap(g=>g.threads),[groups]);
@@ -52,7 +55,7 @@ function WebThreadPicker({threads, value, disabled, onChange,id='thread-picker'}
    <span className="thread-selection" title={choices[selected]?.thread_name||value}>{choices[selected]?.thread_name||value||t("暂无聊天")}</span>
    <ChevronDown size={12} aria-hidden="true"/>
   </button>
-  {open&&<div ref={list} id={listId} role="listbox" aria-label={t("聊天列表")} className="thread-popup">
+  {open&&<div ref={list} id={listId} role="listbox" aria-label={t("聊天列表")} className="thread-popup" data-native-glass={nativeGlass||undefined}>
    {groups.map((group,groupIndex)=><div className="thread-project-group" role="group" aria-labelledby={`${listId}-group-${groupIndex}`} key={group.key}>
     <div id={`${listId}-group-${groupIndex}`} className="thread-project-heading"><Folder size={13} aria-hidden="true"/><span title={group.name}>{group.name}</span><small>{group.threads.length}</small></div>
     {group.threads.map(thread=>{

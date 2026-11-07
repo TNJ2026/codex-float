@@ -1,3 +1,4 @@
+import {useSettingsGlass} from './useSettingsGlass';
 import {t,useLanguage,getLanguage} from './i18n.js';
 import React,{createContext,useContext,useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
@@ -55,7 +56,8 @@ export function McpAppCard({card,threadId}){
   if(expanded){dialog.close();dialog.showModal();}else if(wasExpanded.current){dialog.close();if(typeof dialog.show==='function')dialog.show();else dialog.setAttribute('open','');}wasExpanded.current=expanded;
  },[expanded]);
  // A non-modal dialog keeps the same iframe alive when promoted to the top layer.
- return <dialog open ref={container} className={'mcp-app-card'+(expanded?' expanded':'')} role={expanded?'dialog':'group'} aria-label={card.title} aria-modal={expanded||undefined} onCancel={event=>{event.preventDefault();setExpanded(false);}}>
+ const nativeGlass=useSettingsGlass(container,expanded);
+ return <dialog open data-native-glass={nativeGlass||undefined} ref={container} className={'mcp-app-card'+(expanded?' expanded':'')} role={expanded?'dialog':'group'} aria-label={card.title} aria-modal={expanded||undefined} onCancel={event=>{event.preventDefault();setExpanded(false);}}>
   <header><AppWindow size={14}/><strong>{card.title}</strong><button type="button" aria-label={t("在主 App 打开卡片")} title={t("在主 App 打开")} onClick={()=>openLink(`codex://threads/${resource.threadId}`)}><ExternalLink size={12}/></button>{page&&<button type="button" aria-label={expanded?t("收起卡片"):t("放大卡片")} title={expanded?t("收起"):t("放大")} onClick={()=>setExpanded(value=>!value)}>{expanded?<Minimize2 size={12}/>:<Maximize2 size={12}/>}</button>}</header>
   {(loading||page&&!ready&&!error)&&<p className="mcp-app-status" role="status">{loading?t("正在加载卡片…"):t("正在初始化卡片…")}</p>}
   {toolBusy>0&&<p className="mcp-app-status" role="status">{t("正在执行卡片操作")}{toolBusy>1?t("（{0} 项）",[toolBusy]):''}…</p>}

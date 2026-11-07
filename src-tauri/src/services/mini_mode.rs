@@ -28,6 +28,11 @@ impl Drop for ModeTransition<'_> {
         self.0.store(false, Ordering::Release);
     }
 }
+#[cfg(target_os = "macos")]
+pub fn is_transitioning(app: &tauri::AppHandle) -> bool {
+    app.try_state::<MiniModeState>()
+        .is_some_and(|state| state.transitioning.load(Ordering::Acquire))
+}
 pub fn is_compact(app: &tauri::AppHandle) -> bool {
     app.try_state::<MiniModeState>()
         .is_some_and(|state| state.compact.load(Ordering::Relaxed))
@@ -66,7 +71,18 @@ fn enter(
         }),
         physical,
     )?;
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    native_window::animate_bounds(
+        window,
+        position.unwrap_or_else(|| {
+            PhysicalPosition::new(
+                normal.position.x + normal.size.width as i32 - physical as i32,
+                normal.position.y,
+            )
+        }),
+        PhysicalSize::new(physical, physical),
+    )?;
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         window.set_size(LogicalSize::new(MINI_SIZE, MINI_SIZE))?;
         window.set_position(position.unwrap_or_else(|| {
@@ -92,7 +108,9 @@ fn restore(window: &WebviewWindow, normal: &WindowSnapshot) -> tauri::Result<()>
     window.set_shadow(true)?;
     #[cfg(target_os = "windows")]
     native_window::set_restored_bounds(window, normal.position, normal.size)?;
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    native_window::animate_bounds(window, normal.position, normal.size)?;
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         window.set_size(normal.size)?;
         window.set_position(normal.position)?;
