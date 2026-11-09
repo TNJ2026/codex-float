@@ -50,12 +50,12 @@ export function markdownParts(text,references=[],streaming=false,cwd=''){
   code:token=>/^(math|latex|tex)$/iu.test(token.lang||'')?math(token.text,true):normalCode(token),
   image:({href,title,text})=>{
    const kind=mediaKind(href);
-   if(kind){attachmentLinks.push(href);return `<span class="inline-media"><${kind} data-media-source="${escape(localResourcePath(href,cwd)||href)}" controls preload="none"${kind==='video'?' playsinline':''}></${kind}><a href="#" data-link-target="${escape(href)}">${escape(text||title||t("打开媒体文件"))}</a></span>`;}
+   if(kind){attachmentLinks.push(href);return `<span class="inline-media"><${kind} data-media-source="${escape(localResourcePath(href,cwd)||href)}" controls preload="none"${kind==='video'?' playsinline':''}></${kind}>${kind==='audio'?`<span class="inline-media-label" data-link-target="${escape(href)}">${escape(text||title||t("打开媒体文件"))}</span>`:`<a href="#" data-link-target="${escape(href)}">${escape(text||title||t("打开媒体文件"))}</a>`}</span>`;}
    return `<img data-image-source="${escape(localResourcePath(href,cwd)||href)}" alt="${escape(text)}"${title?` title="${escape(title)}"`:''}>`;
   },
   link({href,title,tokens}){
    const label=this.parser.parseInline(tokens),attachment=/^(?:附件[：:]|attachment:)/iu.test(tokens.map(token=>token.text||'').join(''))||/\.(?:pdf|docx?|xlsx?|pptx?|csv|tsv|zip|7z|rar|tar|gz|odt|ods|odp)(?:[?#].*)?$/iu.test(href);
-   const kind=mediaKind(href);if(kind){attachmentLinks.push(href);return `<span class="inline-media"><${kind} data-media-source="${escape(localResourcePath(href,cwd)||href)}" controls preload="none"></${kind}><a href="#" data-link-target="${escape(href)}">${label}</a></span>`;}
+   const kind=mediaKind(href);if(kind){attachmentLinks.push(href);return `<span class="inline-media"><${kind} data-media-source="${escape(localResourcePath(href,cwd)||href)}" controls preload="none"></${kind}>${kind==='audio'?`<span class="inline-media-label" data-link-target="${escape(href)}">${label}</span>`:`<a href="#" data-link-target="${escape(href)}">${label}</a>`}</span>`;}
    if(attachment){attachmentLinks.push(href);return `<a class="attachment-card markdown-attachment" href="#" data-link-target="${escape(href)}"><span class="attachment-icon">▤</span><span><strong>${label}</strong><small>${t('文件附件')}</small></span><span aria-hidden="true">↗</span></a>`;}
    return `<a href="#" data-link-target="${escape(href)}"${title?` title="${escape(title)}"`:''}>${label}</a>`;
   },

@@ -190,3 +190,44 @@ test('message links dispatch once, show image/text previews and preserve text as
   globals.forEach((key,index)=>{globalThis[key]=previous[index];});dom.window.close();
  }
 });
+
+test('audio embeds and links stay inline when their controls or labels are clicked',async()=>{
+ const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'});
+ const keys=['window','document','IS_REACT_ACT_ENVIRONMENT'],previous=keys.map(key=>globalThis[key]);
+ Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
+ dom.window.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
+ const calls=[];
+ window.__TAURI_INTERNALS__={convertFileSrc:path=>`http://asset.localhost/${encodeURIComponent(path)}`,invoke:async(cmd,args)=>{calls.push({cmd,args});}};
+ const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false,ws:false,watch:null},appType:'custom'});
+ let root;
+ try{
+  const {createRoot}=await import('react-dom/client');
+  const {Markdown}=await vite.ssrLoadModule('/src/Markdown.jsx');
+  const {LinkProvider}=await vite.ssrLoadModule('/src/LinkPreview.jsx');
+  root=createRoot(document.getElementById('root'));
+  await act(async()=>root.render(React.createElement(LinkProvider,{cwd:'/tmp',scope:'audio'},React.createElement(Markdown,{text:'![音频测试](/tmp/test.mp3)\n\n[语音片段](voice.wav)\n\n[视频预览](clip.mp4)',cwd:'/tmp'}))));
+  const players=[...document.querySelectorAll('.inline-media audio')];
+  assert.equal(players.length,2);
+  for(const player of players){
+   assert.ok(player.controls);
+   assert.equal(player.preload,'none');
+   const label=player.parentElement.querySelector('.inline-media-label');
+   assert.ok(label);
+   assert.equal(player.parentElement.querySelector('a'),null);
+   await act(async()=>{player.click();label.click();});
+   assert.equal(document.querySelector('dialog'),null,'audio playback and its label must not open a large preview');
+  }
+  assert.equal(calls.length,0,'inline audio clicks must not dispatch file/link actions');
+  const label=players[0].parentElement.querySelector('.inline-media-label');
+  await act(async()=>label.dispatchEvent(new dom.window.MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2})));
+  assert.ok(document.querySelector('[role="menu"]'),'audio labels retain file context actions');
+  await act(async()=>document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+  await act(async()=>document.querySelector('.inline-media a').click());
+  assert.ok(document.querySelector('dialog video'),'explicit video previews continue to work');
+ }finally{
+  if(root)await act(async()=>root.unmount());
+  await vite.close();dom.window.close();
+  keys.forEach((key,index)=>{if(previous[index]===undefined)delete globalThis[key];else globalThis[key]=previous[index];});
+ }
+});

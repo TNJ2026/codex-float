@@ -663,7 +663,7 @@ button { transition: background-color 110ms ease, border-color 110ms ease, color
 .markdown .inline-media { display: flex; flex-direction: column; gap: 5px; margin: 10px 0; }
 .markdown audio, .markdown video, .media-player audio, .media-player video { display: block; max-width: 100%; width: 100%; border-radius: 6px; }
 .markdown video, .media-player video { max-height: 360px; background: #111; }
-.inline-media > a { font-size: 10px; color: var(--text-muted); }
+.inline-media > a, .inline-media-label { font-size: 10px; color: var(--text-muted); }
 .media-player { margin: 8px 0; padding: 10px; min-width: 0; border: 1px solid var(--stroke); border-radius: 7px; }
 .media-player > figcaption { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--text-muted); font-size: 11px; overflow-wrap: anywhere; }
 .media-player > small { padding: 5px 0 0; font-size: 10px; color: var(--error); }
