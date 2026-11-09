@@ -16,3 +16,10 @@ test('canonical history and fallback identifiers work for task stopping',()=>{
  assert.equal(activeTurnId(state),'turn');
  assert.equal(turnIsRunning(state,'turn'),true);
 });
+
+test('historical unfinished turns are never offered as the current stop target',()=>{
+ const state={turns:[{turnId:'old',status:'inProgress'},{turnId:'latest',status:'completed'}]};
+ assert.equal(activeTurnId(state),null);
+ assert.equal(turnIsRunning(state,'old'),false);
+ assert.equal(activeTurnId({turns:[state.turns[0]],resumeState:'needs_resume'}),null);
+});

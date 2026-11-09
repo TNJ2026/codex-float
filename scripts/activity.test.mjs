@@ -3,6 +3,15 @@ import assert from 'node:assert/strict';
 import {activityOf} from '../src/model.js';
 
 const state = (items, extra = {}) => ({turns:[{status:'inProgress',items,...extra}]});
+test('only the latest turn can contribute tool activity',()=>{
+ const stale={id:'old',status:'inProgress',items:[{type:'commandExecution',status:'inProgress',command:'old command'}]};
+ const latest={id:'latest',status:'completed',items:[]};
+ assert.equal(activityOf({turns:[stale,latest],threadRuntimeStatus:{type:'active'}}),null);
+ const active=activityOf({turns:[stale,{...latest,status:'inProgress'}]});
+ assert.equal(active.kind,'thinking');
+ assert.equal(active.toolTitle,undefined);
+ assert.equal(activityOf({turns:[stale],resumeState:'needs_resume',threadRuntimeStatus:{type:'idle'}}),null);
+});
 test('idle and finished turns never retain a running tool indicator', () => {
   assert.equal(activityOf(null), null);
   assert.equal(activityOf({turns:[{status:'completed',items:[{type:'commandExecution',status:'inProgress'}]}]}), null);

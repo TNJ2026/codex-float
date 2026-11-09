@@ -94,8 +94,15 @@ const toolLabels = {
   webSearch: '正在搜索网页', imageGeneration: '正在生成图片',
   collabAgentToolCall: '正在调用子代理', subAgentActivity: '子代理正在工作'
 };
+export function activeTurnsOf(state){
+  // Old restored history can retain inProgress after newer turns have finished.
+  // Only the latest turn describes the current task; unloaded history is not live.
+  if(state?.resumeState==='needs_resume')return [];
+  const latest=turnsOf(state).at(-1);
+  return latest?.status==='inProgress'?[latest]:[];
+}
 export function latestToolDetailOf(state){
-  const turns=turnsOf(state).filter(turn=>turn.status==='inProgress');
+  const turns=activeTurnsOf(state);
   for(let turnIndex=turns.length-1;turnIndex>=0;turnIndex--){
     const turn=turns[turnIndex],items=orderedItems(turn);
     for(let index=items.length-1;index>=0;index--){
@@ -105,8 +112,10 @@ export function latestToolDetailOf(state){
   return null;
 }
 export function activityOf(state) {
-  const activeTurns = turnsOf(state).filter(entry => entry.status === 'inProgress');
-  if (!activeTurns.length && state?.threadRuntimeStatus?.type !== 'active') return null;
+  const activeTurns = activeTurnsOf(state);
+  const runtimeActive=state?.threadRuntimeStatus?.type==='active'&&
+    (state?.resumeState==='needs_resume'||turnsOf(state).length===0);
+  if (!activeTurns.length && !runtimeActive) return null;
   if (state?.requests?.length) return { kind: 'waiting', label: t("等待审批 / 回复") };
   const turnItems = activeTurns.flatMap(entry => {
     if (Array.isArray(entry.items)) return entry.items;
