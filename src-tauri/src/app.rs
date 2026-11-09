@@ -74,6 +74,19 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("无法启动 CodexFloat");
     app.run(|handle, event| {
+        #[cfg(target_os = "macos")]
+        if matches!(
+            event,
+            tauri::RunEvent::Ready | tauri::RunEvent::Reopen { .. }
+        ) {
+            // Activation policy is settled after launch. Raising an accessory
+            // window alone does not make it the keyboard/main window.
+            if let Some(window) = handle.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }
         if matches!(event, tauri::RunEvent::Exit) {
             codex::shutdown(handle);
             services::mcp_apps::shutdown(handle);

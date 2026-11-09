@@ -67,15 +67,27 @@ pub fn install(window: &WebviewWindow) -> Result<(), String> {
     unsafe {
         let target = Retained::retain(pointer.cast::<NSWindow>()).ok_or("无法获取原生窗口")?;
         target.setMovable(true);
+        let focus_window = window.clone();
         let handler = RcBlock::new(move |event: NonNull<NSEvent>| -> *mut NSEvent {
             let event_ref = event.as_ref();
             let Some(owner) = event_ref.window(mtm) else {
                 return event.as_ptr();
             };
-            if !ptr::eq(&*owner, &*target)
-                || !target.isMovable()
-                || !target.toolbar().is_some_and(|toolbar| toolbar.isVisible())
-            {
+            if !ptr::eq(&*owner, &*target) {
+                return event.as_ptr();
+            }
+            // Accessory apps at an elevated level do not always activate on a
+            // click. Focus before custom dragging consumes the titlebar event;
+            // keep first responder selection to AppKit/the clicked control.
+            let application: *mut AnyObject = msg_send![
+                AnyClass::get(c"NSApplication").expect("AppKit application class"),
+                sharedApplication
+            ];
+            let active: bool = msg_send![application, isActive];
+            if !active || !target.isKeyWindow() {
+                let _ = focus_window.set_focus();
+            }
+            if !target.isMovable() || !target.toolbar().is_some_and(|toolbar| toolbar.isVisible()) {
                 return event.as_ptr();
             }
             let point = event_ref.locationInWindow();

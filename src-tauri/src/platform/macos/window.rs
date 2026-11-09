@@ -1,9 +1,9 @@
 pub use super::toolbar::install_menu;
 use objc2::{msg_send, AnyThread, MainThreadMarker};
 use objc2_app_kit::{
-    NSAnimationBlockingMode, NSNormalWindowLevel, NSPopUpMenuWindowLevel, NSView, NSViewAnimation,
-    NSViewAnimationEndFrameKey, NSViewAnimationStartFrameKey, NSViewAnimationTargetKey, NSWindow,
-    NSWindowCollectionBehavior, NSWindowTitleVisibility,
+    NSAnimationBlockingMode, NSFloatingWindowLevel, NSNormalWindowLevel, NSPopUpMenuWindowLevel,
+    NSView, NSViewAnimation, NSViewAnimationEndFrameKey, NSViewAnimationStartFrameKey,
+    NSViewAnimationTargetKey, NSWindow, NSWindowCollectionBehavior, NSWindowTitleVisibility,
 };
 use objc2_foundation::{NSArray, NSDictionary, NSPoint, NSRect, NSSize, NSValue};
 use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewWindow, Window, WindowEvent};
@@ -18,9 +18,7 @@ pub fn initialize(window: &WebviewWindow) -> Result<(), String> {
     if let Some(content) = native.contentView() {
         super::text_input::install_window_level(&content);
     }
-    let pinned = window
-        .is_always_on_top()
-        .map_err(|error| error.to_string())?;
+    let pinned = is_pinned(window).map_err(|error| error.to_string())?;
     set_pinned(window, pinned).map_err(|error| error.to_string())?;
     super::drag::install(window)?;
     Ok(())
@@ -56,18 +54,38 @@ pub fn set_pinned(window: &WebviewWindow, pinned: bool) -> tauri::Result<()> {
         let native = &*pointer.cast::<NSWindow>();
         native.setCanHide(!pinned);
         native.setHidesOnDeactivate(false);
-        native.setLevel(if pinned {
-            // Leave system input-method and utility UI above this overlay.
-            // NSTextInputClient also reports this level for candidate placement.
-            NSPopUpMenuWindowLevel
-        } else {
-            NSNormalWindowLevel
-        });
+        native.setLevel(pinned_window_level(pinned, native.isKeyWindow()));
         if pinned {
             native.orderFrontRegardless();
         }
     }
     Ok(())
+}
+// A key window is being used interactively: ordinary floating level lets IME,
+// context menus and system UI stay above it. The stronger level is only needed
+// while another app owns keyboard focus (including fullscreen video).
+fn pinned_window_level(pinned: bool, focused: bool) -> isize {
+    if !pinned {
+        NSNormalWindowLevel
+    } else if focused {
+        NSFloatingWindowLevel
+    } else {
+        NSPopUpMenuWindowLevel
+    }
+}
+fn update_focus_level(window: &Window, focused: bool) {
+    let Some(_main) = MainThreadMarker::new() else {
+        return;
+    };
+    let Ok(pointer) = window.ns_window() else {
+        return;
+    };
+    // SAFETY: The event originates on AppKit's main thread; Tauri owns NSWindow.
+    let Some(native) = (unsafe { pointer.cast::<NSWindow>().as_ref() }) else {
+        return;
+    };
+    let pinned = native.level() > NSNormalWindowLevel;
+    native.setLevel(pinned_window_level(pinned, focused));
 }
 fn floating_collection_behavior(current: NSWindowCollectionBehavior) -> NSWindowCollectionBehavior {
     // These modes are mutually exclusive with joining every Space and acting
@@ -102,6 +120,18 @@ pub fn titlebar_height(window: &WebviewWindow) -> f64 {
 #[cfg(test)]
 mod space_tests {
     use super::*;
+
+    #[test]
+    fn keyboard_focus_keeps_pinning_but_releases_system_ui_levels() {
+        let interactive = pinned_window_level(true, true);
+        let background = pinned_window_level(true, false);
+        assert!(interactive > NSNormalWindowLevel);
+        assert!(interactive < background);
+        assert_eq!(interactive, NSFloatingWindowLevel);
+        assert_eq!(background, NSPopUpMenuWindowLevel);
+        assert_eq!(pinned_window_level(false, true), NSNormalWindowLevel);
+        assert_eq!(pinned_window_level(false, false), NSNormalWindowLevel);
+    }
 
     #[test]
     fn fullscreen_overlay_preserves_other_policies_without_conflicting_space_modes() {
@@ -178,6 +208,9 @@ pub fn prepare_compact(
     Ok(())
 }
 pub fn on_event(window: &Window, event: &WindowEvent) {
+    if let WindowEvent::Focused(focused) = event {
+        update_focus_level(window, *focused);
+    }
     if matches!(event, WindowEvent::Resized(_)) {
         if crate::services::mini_mode::is_transitioning(window.app_handle()) {
             return;
@@ -197,6 +230,8 @@ pub fn finish_restore(window: &WebviewWindow) {
     super::toolbar::set_visible(true);
     let _ = native_controls(window, false);
     super::toolbar::publish_layout(window);
+    // Restoring from the ball is an explicit request to interact with chat.
+    let _ = window.set_focus();
 }
 
 // Called on the AppKit thread, with minimum size constraints temporarily lifted.
