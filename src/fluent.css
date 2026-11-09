@@ -22,7 +22,7 @@
   --text-muted: #46515d;
   --text-project: #666;
   --text-disabled: #56616e;
-  --window-bg: rgba(250,251,249,var(--background-alpha,.6));
+  --window-bg: rgba(250,251,249,var(--background-alpha,.25));
   --settings-bg-rgb: 250,251,249;
   --settings-bg: rgba(var(--settings-bg-rgb),.8);
   --window-border: rgba(255,255,255,.6);
@@ -113,7 +113,7 @@
 /* Clear glass supplies the refraction; retain the user's full tint strength
    so text remains readable when a bright or dark window sits behind it. */
 :root[data-native-background="liquid-glass"] {
-  --window-bg: rgba(250,251,249,var(--background-alpha,.6));
+  --window-bg: rgba(250,251,249,var(--background-alpha,.25));
 }
 :root[data-native-background="liquid-glass"][data-theme="dark"] {
   --window-bg: rgba(18,20,24,var(--background-alpha,.6));
@@ -242,6 +242,17 @@ button { transition: background-color 110ms ease, border-color 110ms ease, color
 .file-preview > header > button:focus-visible { outline: 1px solid var(--text-muted); outline-offset: 2px; }
 .file-preview-body { min-height: 0; overflow: auto; padding: 12px; user-select: text; }
 .file-preview-body img { display: block; max-width: 100%; height: auto; margin: auto; }
+.image-preview-dialog[open] { height: calc(100vh - var(--dialog-top) - 16px); }
+.image-preview-dialog > .file-preview-body { display: flex; flex: 1; padding: 0; overflow: hidden; }
+.image-preview { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.image-preview-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; padding: 8px; border-bottom: 1px solid var(--stroke); }
+.image-preview-toolbar button { padding: 4px 8px; border: 1px solid var(--stroke); border-radius: 4px; background: var(--control); color: var(--text); font: inherit; font-size: 12px; }
+.image-preview-toolbar button:hover:not(:disabled) { background: var(--control-hover); }
+.image-preview-toolbar output { min-width: 44px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; }
+.image-preview-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; user-select: none; cursor: grab; }
+.image-preview-viewport[data-dragging] { cursor: grabbing; }
+.image-preview-viewport:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.file-preview-body .image-preview-viewport img { position: absolute; left: 50%; top: 50%; max-width: none; margin: 0; transform-origin: center; user-select: none; }
 .file-preview-body pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 "Cascadia Code",Consolas,monospace; }
 .changed-files { margin: 10px 0 14px; }
 .changed-files-summary { display: block; width: 100%; padding: 10px 12px; border: 1px solid var(--stroke); border-radius: 6px; background: transparent; text-align: left; }
@@ -505,12 +516,8 @@ button { transition: background-color 110ms ease, border-color 110ms ease, color
 .model-popup-error { color: var(--error); }
 .model-popup-footer { display: flex; align-items: center; gap: 10px; padding-top: 12px; flex-shrink: 0; }
 .model-popup-footer > span { flex: 1; color: var(--text-muted); font-size: 10px; line-height: 15px; }
-.permission-picker-button { display: inline-flex; align-items: center; gap: 3px; min-width: 0; max-width: 100px; height: 24px; padding: 2px 4px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 11px; }
-.permission-picker-button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.permission-picker-button > svg { flex-shrink: 0; }
-.permission-picker-button:hover:not(:disabled), .permission-picker-button[aria-expanded="true"] { border-color: var(--stroke); background: var(--hover-fill); }
-.permission-picker-button[data-permission="full-access"] { color: #ef4444; }
 .permission-popup { padding: 5px; overflow-y: auto; scrollbar-width: thin; }
+.link-context-menu { inset: auto; width: min(220px, calc(100vw - 16px)); max-height: calc(100vh - 16px); margin: 0; z-index: 100; }
 .permission-popup > button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 8px; border: 0; border-radius: 4px; background: transparent; color: var(--text); text-align: left; font: inherit; }
 .permission-popup > button:hover:not(:disabled), .permission-popup > button:focus-visible, .permission-popup > button[aria-checked="true"] { background: var(--hover-fill); }
 .permission-popup > button > span { flex: 1; min-width: 0; }
@@ -711,3 +718,9 @@ button { transition: background-color 110ms ease, border-color 110ms ease, color
   .send { forced-color-adjust: none; background: Highlight; color: HighlightText; }
   .markdown, .markdown a, .section-label, .footer-meta { color: CanvasText; }
 }
+
+.permission-status { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 110px; height: 24px; padding: 2px 4px; color: var(--text-secondary); font-size: 12px; line-height: 16px; }
+.permission-status > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.permission-status > svg { flex-shrink: 0; }
+.permission-status[data-permission="full-access"] { color: #ef4444; }
+.permission-status[data-connected="false"] { opacity: .6; }

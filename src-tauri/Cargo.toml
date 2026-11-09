@@ -23,7 +23,7 @@ libc = "0.2"
 block2 = "0.6"
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSGeometry", "NSArray", "NSString", "NSDictionary", "NSValue"] }
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSView", "NSWindow", "NSAnimation", "NSToolbar", "NSToolbarItem", "NSImage", "NSFontDescriptor", "NSLayoutAnchor", "NSLayoutConstraint", "NSStackView", "NSUserInterfaceLayout", "NSEvent", "block2", "NSButton", "NSControl", "NSCell", "NSButtonCell", "NSColor"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSView", "NSWindow", "NSAppearance", "NSAnimation", "NSToolbar", "NSToolbarItem", "NSImage", "NSFontDescriptor", "NSLayoutAnchor", "NSLayoutConstraint", "NSStackView", "NSUserInterfaceLayout", "NSEvent", "block2", "NSButton", "NSControl", "NSCell", "NSButtonCell", "NSColor"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 resvg = { version = "0.45.1", default-features = false }

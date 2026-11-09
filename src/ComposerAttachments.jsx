@@ -74,7 +74,7 @@ export function useAttachments({scope,onError}){
 
 export function AttachmentButton({onClick,disabled}){
  useLanguage();
- return <button type="button" className="icon-button attachment-button" title={t("添加附件（也可拖入或粘贴）")} aria-label={t("添加附件")} onClick={onClick} disabled={disabled}><Paperclip size={16}/></button>;
+ return <button type="button" className="icon-button attachment-button" title={t("添加附件（也可拖入或粘贴）")} aria-label={t("添加附件")} onClick={onClick} disabled={disabled}><Paperclip size={14}/></button>;
 }
 export function ComposerAttachments({files,onRemove,preparing,dragging}){
  useLanguage();

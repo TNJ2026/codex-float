@@ -28,17 +28,20 @@ export const InteractionCard=memo(function InteractionCard({request,active,disab
   catch(e){setError(String(e));setState('idle');}
   finally{lock.current=false;}
  }
- const completed=!active&&!disabled;
+ const completed=!active;
  if(card.kind==='questions'&&(completed||state==='submitted')){
   // Async replies are already echoed as regular messages by the owner.
   return replyAnswers.length&&request.method!=='local/asyncQuestions'?<article className="message user"><QuestionAnswer answers={replyAnswers}/></article>:null;
  }
+ // Resolved approvals and forms belong to tool history, not the end of the chat.
+ // Keep the component mounted for an in-flight reply, but remove its stale UI.
+ if(completed)return null;
  return <div className="interaction-exchange">
   <article className="interaction-card">
    <strong>{t(card.title)}</strong>
    {card.body&&<p>{card.body}</p>}
    {card.details&&Object.keys(card.details).length>0&&<details><summary>{t("查看操作详情")}</summary><pre>{Object.entries(card.details).map(([key,value])=>`${t(key)}: ${typeof value==='string'?value:JSON.stringify(value,null,2)}`).join('\n\n')}</pre></details>}
-   {completed?<p className="interaction-status">{summary?t("已处理"):t("已在主窗口处理或请求已结束")}</p>:<>
+    <>
     {card.kind==='unsupported'?<p className="interaction-status">{t("请在 Codex 主窗口完成，结果会继续同步到这里。")}</p>:<form onSubmit={e=>{e.preventDefault();submit();}}>
      {card.kind==='questions'&&card.questions.map(q=><fieldset key={q.id} disabled={unavailable}>
       <legend>{q.header||t("问题")}</legend><p>{q.question}</p>
@@ -54,7 +57,7 @@ export const InteractionCard=memo(function InteractionCard({request,active,disab
     {state==='sending'&&<p className="interaction-status" role="status">{t("正在提交…")}</p>}
     {state==='submitted'&&<p className="interaction-status" role="status">{t("已提交，等待会话确认…")}</p>}
     {error&&<p className="interaction-error" role="alert">{t(error)}</p>}
-   </>}
+   </>
   </article>
   {summary&&<article className="message user"><div className="markdown interaction-answer">{summary}</div></article>}
  </div>;
@@ -66,20 +69,23 @@ export function InteractionMessages({requests,messages,MessageComponent,threadId
  useEffect(()=>{
   setHistory(current=>{
    const seen=new Set(current.map(entry=>keyOf(entry.request)));
-   const added=requests.filter(request=>!seen.has(keyOf(request))).map(request=>({request,afterMessageId:messages.at(-1)?.id}));
+   const added=requests.filter(request=>!seen.has(keyOf(request))).map(request=>({request,afterMessageId:messages.at(-1)?.id,turnId:messages.at(-1)?.turnId}));
    return added.length?[...current,...added]:current;
   });
  },[requests]);
  const active=new Map(requests.map(request=>[keyOf(request),request]));
  const seen=new Set(history.map(entry=>keyOf(entry.request)));
- const entries=[...history,...requests.filter(request=>!seen.has(keyOf(request))).map(request=>({request,afterMessageId:messages.at(-1)?.id}))];
+ const entries=[...history,...requests.filter(request=>!seen.has(keyOf(request))).map(request=>({request,afterMessageId:messages.at(-1)?.id,turnId:messages.at(-1)?.turnId}))];
  const renderCard=({request})=>{
   const id=keyOf(request);
   return <InteractionCard key={`${threadId}:${id}`} request={active.get(id)||request} active={active.has(id)} disabled={disabled} onReply={onReply}/>;
  };
- const ids=new Set(messages.map(message=>message.id));
+ const includesMessage=(message,id)=>message.id===id||message.workMessages?.some(item=>includesMessage(item,id));
+ const anchor=entry=>messages.find(message=>includesMessage(message,entry.afterMessageId))?.id
+  ||(entry.turnId&&messages.findLast(message=>message.turnId===entry.turnId)?.id);
+ const located=entries.map(entry=>({...entry,anchor:anchor(entry)}));
  return <>
-  {messages.map(message=><React.Fragment key={message.id}><MessageComponent {...message} onEdit={onEditMessage} editDisabled={editDisabled} onFork={onForkMessage} forkDisabled={forkDisabled}/>{entries.filter(entry=>entry.afterMessageId===message.id).map(renderCard)}</React.Fragment>)}
-  {entries.filter(entry=>!ids.has(entry.afterMessageId)).map(renderCard)}
+  {messages.map(message=><React.Fragment key={message.id}><MessageComponent {...message} onEdit={onEditMessage} editDisabled={editDisabled} onFork={onForkMessage} forkDisabled={forkDisabled}/>{located.filter(entry=>entry.anchor===message.id).map(renderCard)}</React.Fragment>)}
+  {located.filter(entry=>!entry.anchor&&active.has(keyOf(entry.request))).map(renderCard)}
  </>;
 }

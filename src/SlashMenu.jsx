@@ -7,7 +7,7 @@ import {slashRows} from './slash-commands';
 import {PreviewDialog} from './PreviewDialog';
 import {modelDisplayName} from './model';
 import {effortLabel} from './model-settings';
-import {permissionOptions,permissionPreset} from './permissions';
+import {permissionOptions,permissionDisplay} from './permissions';
 import {speedLabel} from './speed-settings';
 
 const commandIcons={model:SlidersHorizontal,fast:Zap,permissions:Shield,skills:Cpu,mention:AtSign,plan:ListTodo,agent:Play,compact:Archive,status:Info};
@@ -50,7 +50,7 @@ export function SlashMenu({scope,cwd,token,busy,disabled,onClose,onSelect,onRows
 
 export function ChatStatus({conversation,names,onClose}){
  useLanguage();
- const permission=permissionOptions.find(option=>option.id===permissionPreset(conversation))?.label||t("自定义权限");
+ const permission=t(permissionOptions.find(option=>option.id===permissionDisplay(conversation).current)?.label||"自定义权限");
  return <PreviewDialog title={t("聊天状态")} onClose={onClose}><dl className="chat-status">{[
   [t("聊天 ID"),conversation?.id],[t("模型"),modelDisplayName(conversation?.latestModel,names)],[t("推理强度"),effortLabel(conversation?.latestReasoningEffort)],[t("权限"),permission],[t("模式"),conversation?.latestCollaborationMode?.mode==='plan'?t("计划模式"):t("执行模式")],[t("工作目录"),conversation?.cwd||conversation?.latestThreadSettings?.cwd],[t("速度"),speedLabel(conversation?.latestThreadSettings?.serviceTier)],
  ].map(([label,value])=><React.Fragment key={label}><dt>{label}</dt><dd>{value||t("暂无信息")}</dd></React.Fragment>)}</dl></PreviewDialog>;

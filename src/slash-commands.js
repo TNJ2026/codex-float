@@ -2,7 +2,7 @@ import {t} from './i18n.js';
 export const slashCommands=[
  {id:'model',title:'模型与推理强度',description:'选择模型和推理强度'},
  {id:'fast',title:'切换快速模式',description:'切换标准与快速响应，下轮生效'},
- {id:'permissions',title:'权限',description:'设置只读、默认权限或完全访问'},
+ {id:'permissions',title:'权限',description:'查看当前权限；请在主 App 中修改'},
  {id:'skills',title:'技能',description:'浏览并添加可用技能'},
  {id:'mention',title:'添加上下文',description:'搜索文件、目录、网页和其他对话'},
  {id:'plan',title:'计划模式',description:'切换为先制定计划，下轮生效'},

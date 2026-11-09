@@ -11,18 +11,23 @@ import {useAcrylicOpacity} from './useAcrylicOpacity';
 export const Settings=memo(function Settings({predictionsEnabled=false,onPredictionsChange,nativeToolbar=false,hideTrigger=false,openRequest=0,available=true}){
  const language=useLanguage();
  const [open,setOpen]=useState(false),[theme,setTheme]=useState(()=>readTheme(localStorage));
- const [appearance,setAppearance]=useState(()=>readAppearance(localStorage));
+ const [appearance,updateAppearance]=useState(()=>readAppearance(localStorage,theme));
+ const setAppearance=next=>{
+  updateAppearance(next);
+  try{localStorage.setItem('codex-float-appearance',JSON.stringify(next));}catch{}
+ };
  const [mode,setMode]=useState(window.__TAURI_INTERNALS__?'loading':'browser');
  const acrylic=useAcrylicOpacity(mode==='desktop-acrylic-controller');
  const [adjustableBlur,setAdjustableBlur]=useState(false),[blurError,setBlurError]=useState(false);
  const blurQueue=useRef(Promise.resolve());
- const root=useRef(null),button=useRef(null),themeButtons=useRef(null);
+ const root=useRef(null),button=useRef(null),themeButtons=useRef(null),heading=useRef(null);
  const panel=useRef(null),nativeGlass=useSettingsGlass(panel,open&&available,mode);
  const Panel=nativeToolbar?'dialog':'div';
  useLayoutEffect(()=>{
   if(!nativeToolbar||!open||!available)return;
   const element=panel.current;
   element.showModal();
+  heading.current?.focus({preventScroll:true});
   return ()=>element.close();
  },[nativeToolbar,open,available]);
  const nativeSwitch='switch' in window.HTMLInputElement.prototype;
@@ -35,10 +40,10 @@ export const Settings=memo(function Settings({predictionsEnabled=false,onPredict
   document.documentElement.dataset.theme=theme;
   try{localStorage.setItem('codex-float-theme',theme);}catch{}
   if(window.__TAURI_INTERNALS__)getCurrentWindow().setTheme(theme).catch(()=>{});
+  updateAppearance(readAppearance(localStorage,theme));
  },[theme]);
  useEffect(()=>{
   applyTransparency(document.documentElement,appearance.transparency);
-  try{localStorage.setItem('codex-float-appearance',JSON.stringify(appearance));}catch{}
  },[appearance]);
  useEffect(()=>{
   if(!window.__TAURI_INTERNALS__)return;
@@ -66,7 +71,7 @@ export const Settings=memo(function Settings({predictionsEnabled=false,onPredict
  },[adjustableBlur,appearance.blur]);
  useEffect(()=>{
   if(!open)return;
-  themeButtons.current?.querySelector('[aria-pressed="true"]')?.focus();
+  if(!nativeToolbar)themeButtons.current?.querySelector('[aria-pressed="true"]')?.focus();
   const pointer=e=>{
    const element=panel.current;
    if(nativeToolbar&&e.target===element&&e.type==='pointerdown'){
@@ -87,7 +92,7 @@ export const Settings=memo(function Settings({predictionsEnabled=false,onPredict
  return <div className="settings-control" data-native-toolbar={nativeToolbar||undefined} ref={root}>
   <button ref={button} hidden={nativeToolbar||hideTrigger} type="button" className="icon-button settings-button" title={t("设置")} aria-label={t("设置")} aria-haspopup="dialog" aria-expanded={open} aria-controls={open?'appearance-settings':undefined} onClick={()=>setOpen(current=>!current)}><span className="settings-icon" aria-hidden="true"/></button>
   {open&&available&&<Panel ref={panel} id="appearance-settings" className="settings-panel" data-native-glass={nativeGlass||undefined} role="dialog" aria-label={t("显示设置")} onCancel={e=>{e.preventDefault();setOpen(false);}} onMouseDown={e=>e.stopPropagation()}>
-   <div className="settings-heading"><strong>{t("显示设置")}</strong><button type="button" className="settings-close" title={t("关闭设置")} aria-label={t("关闭设置")} onClick={()=>{setOpen(false);if(!nativeToolbar&&!hideTrigger)button.current?.focus();}}><X size={14} aria-hidden="true"/></button></div>
+   <div className="settings-heading"><strong ref={heading} tabIndex={nativeToolbar?-1:undefined}>{t("显示设置")}</strong><button type="button" className="settings-close" title={t("关闭设置")} aria-label={t("关闭设置")} onClick={()=>{setOpen(false);if(!nativeToolbar&&!hideTrigger)button.current?.focus();}}><X size={14} aria-hidden="true"/></button></div>
    <label className="settings-language" htmlFor="interface-language"><span>{t('界面语言')}</span><select id="interface-language" value={language} onChange={event=>setLanguage(event.target.value)}><option value="zh-CN">简体中文</option><option value="en">English</option></select></label>
    <div className="settings-theme"><span id="appearance-theme-label">{t("主题")}</span><div ref={themeButtons} className="settings-theme-toggle" role="group" aria-labelledby="appearance-theme-label">
     <button type="button" className="theme-option" title={t("亮色主题")} aria-label={t("亮色主题")} aria-pressed={theme==='light'} onClick={()=>setTheme('light')}><Sun size={16} aria-hidden="true"/></button>

@@ -9,17 +9,20 @@ export function parseQuestionReply(text){
 }
 export function asyncQuestionRequests(state){
  const turns=turnsOf(state);
- // The model can finish while its async question dialog remains open. Keep the
- // latest question batch addressable across subsequent turns, until answered.
+ // Completion alone does not close an async question. A subsequent user prompt
+ // does: historical question metadata has no pending/dismissed status to restore.
  const turn=turns.findLast(entry=>itemsOf(entry).some(i=>i.type==='agentMessage'&&i.questions?.length));
  if(!turn)return [];
- const items=itemsOf(turn),answered=new Set();
- for(const item of turns.flatMap(itemsOf)){
+ const items=turns.flatMap(itemsOf),answered=new Set();
+ let lastPrompt=-1;
+ for(const [index,item] of items.entries()){
   if(item.type!=='userMessage'&&!(item.type==='steeringUserMessage'&&item.status==='accepted'))continue;
   const text=(item.content||item.input||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n');
-  for(const reply of parseQuestionReply(text))answered.add(reply.questionItemId);
+  const replies=parseQuestionReply(text);
+  for(const reply of replies)answered.add(reply.questionItemId);
+  if(!replies.length&&(text.trim()||item.content?.length||item.input?.length)&&!text.trim().startsWith('<external_codex_apps_open_page>'))lastPrompt=index;
  }
- return items.filter(i=>i.type==='agentMessage'&&Array.isArray(i.questions)).flatMap(item=>{
+ return itemsOf(turn).filter(i=>i.type==='agentMessage'&&Array.isArray(i.questions)&&items.indexOf(i)>lastPrompt).flatMap(item=>{
   const questions=item.questions.map((q,index)=>({id:JSON.stringify(['request_user_input_async',item.id,index]),question:q.title,options:(q.options||[]).map(o=>typeof o==='string'?{label:o}:o),isOther:true})).filter(q=>typeof q.question==='string'&&!answered.has(q.id));
   return questions.length?[{id:`async:${item.id}`,method:'local/asyncQuestions',params:{questions}}]:[];
  });

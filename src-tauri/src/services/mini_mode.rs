@@ -92,7 +92,7 @@ fn enter(
             )
         }))?;
     }
-    window.set_always_on_top(true)?;
+    native_window::set_pinned(window, true)?;
     Ok(())
 }
 fn restore(window: &WebviewWindow, normal: &WindowSnapshot) -> tauri::Result<()> {
@@ -118,7 +118,7 @@ fn restore(window: &WebviewWindow, normal: &WindowSnapshot) -> tauri::Result<()>
     // Apply the size constraint after placement to avoid an intermediate resize
     // from the ball to the minimum window size at the ball's screen position.
     window.set_min_size(Some(LogicalSize::new(360.0, 480.0)))?;
-    window.set_always_on_top(normal.pinned)?;
+    native_window::set_pinned(window, normal.pinned)?;
     native_window::border(window, false);
     if normal.maximized {
         window.maximize()?;
@@ -155,7 +155,7 @@ pub async fn set_mini_mode(window: WebviewWindow, compact: bool) -> Result<bool,
                         #[cfg(target_os = "windows")]
                         content_position: handle.inner_position()?,
                         resizable: handle.is_resizable()?,
-                        pinned: handle.is_always_on_top()?,
+                        pinned: native_window::is_pinned(&handle)?,
                         maximized: handle.is_maximized()?,
                     },
                 };

@@ -41,6 +41,11 @@ test('settings popup changes and saves appearance, keeps native glass and closes
   assert.equal(gear().getAttribute('aria-expanded'),'true');
   const themeButton=theme=>document.querySelector(`.theme-option[aria-label="${theme==='light'?'亮色':'暗色'}主题"]`);
   assert.equal(document.activeElement,themeButton('dark'));
+  assert.equal(document.getElementById('appearance-transparency').value,'60');
+  await click(themeButton('light'));
+  assert.equal(document.getElementById('appearance-transparency').value,'25','light theme uses its own default before a custom appearance is saved');
+  await click(themeButton('dark'));
+  assert.equal(document.getElementById('appearance-transparency').value,'60','switching themes does not persist the default as a custom value');
   assert.equal(document.querySelectorAll('.settings-theme-toggle button').length,2);
   for(const option of document.querySelectorAll('.theme-option')){assert.equal(option.textContent,'');assert.ok(option.querySelector('svg'));}
   assert.equal(document.getElementById('appearance-blur').value,'10');
@@ -134,6 +139,7 @@ test('settings popup changes and saves appearance, keeps native glass and closes
   document.documentElement.dataset.nativeWindowControls='true';
   await act(async()=>root.render(React.createElement(Settings,{nativeToolbar:true,openRequest:1})));
   assert.ok(document.querySelector('dialog.settings-panel[open]'),'the native action opens settings in the modal top layer');
+  assert.equal(document.activeElement,document.querySelector('.settings-heading > strong'),'opening native settings focuses the heading instead of highlighting a control');
   await click(themeButton('dark'));
   assert.equal(document.documentElement.dataset.theme,'dark','the theme button applies the chosen theme');
   await act(async()=>root.render(React.createElement(Settings,{nativeToolbar:true,openRequest:2})));

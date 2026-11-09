@@ -6,7 +6,7 @@ import DOMPurify from 'dompurify';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import {imageSource} from './images';
-import {useLinkAction} from './LinkPreview';
+import {useLinkAction,useLinkMenu} from './LinkPreview';
 import {highlightCode} from './syntax';
 import {copyText} from './message-actions';
 import {mediaKind,mediaSource,specialFence,closedFence,safeSource,localResourcePath,annotateCitations} from './rich-content';
@@ -29,7 +29,8 @@ purifier.addHook('afterSanitizeAttributes',node=>{
   if(node.tagName!=='SOURCE'){node.setAttribute('controls','');node.setAttribute('preload','none');}return;
  }
  if(node.tagName!=='IMG')return;
- const source=resolveImage(node.getAttribute('data-image-source')||node.getAttribute('src'));
+ const original=node.getAttribute('data-image-source')||node.getAttribute('src'),source=resolveImage(original);
+ if(source)node.setAttribute('data-link-target',original);else node.removeAttribute('data-link-target');
  node.removeAttribute('data-image-source');node.removeAttribute('srcset');
  if(source)node.setAttribute('src',source);else node.removeAttribute('src');
  node.setAttribute('loading','lazy');node.setAttribute('decoding','async');node.setAttribute('referrerpolicy','no-referrer');node.setAttribute('tabindex','0');node.setAttribute('role','button');
@@ -81,16 +82,16 @@ export function markdownParts(text,references=[],streaming=false,cwd=''){
 
 export const Markdown=memo(function Markdown({text='',images=[],attachments=[],references=[],streaming=false,cwd=''}){
  const language=useLanguage();
- const openLink=useLinkAction(),[copyError,setCopyError]=useState(''),[mediaError,setMediaError]=useState('');
+ const openLink=useLinkAction(),showLinkMenu=useLinkMenu(),[copyError,setCopyError]=useState(''),[mediaError,setMediaError]=useState('');
  const rendered=useMemo(()=>markdownParts(text,references,streaming,cwd),[text,references,streaming,cwd,language]);
  async function activate(event){
   const copy=event.target.closest('[data-copy-code]');if(copy){event.preventDefault();const code=copy.closest('.markdown-code-block')?.querySelector('pre > code');if(!code)return;try{await copyText(code.textContent);setCopyError('');copy.textContent=t("已复制");copy.setAttribute('aria-label',t("代码已复制"));setTimeout(()=>{if(copy.isConnected){copy.textContent=t("复制代码");copy.setAttribute('aria-label',t("复制代码"));}},1600);}catch(error){setCopyError(String(error.message||error));}return;}
-  const anchor=event.target.closest('a');if(anchor){event.preventDefault();openLink(anchor.getAttribute('data-link-target')||'');}else if(event.target.tagName==='IMG'&&event.target.getAttribute('src')){event.preventDefault();openLink(event.target.getAttribute('src'),true);}
+  const anchor=event.target.closest('a');if(anchor){event.preventDefault();openLink(anchor.getAttribute('data-link-target')||'');}else if(event.target.tagName==='IMG'&&event.target.getAttribute('src')){event.preventDefault();openLink(event.target.getAttribute('data-link-target')||event.target.getAttribute('src'),true);}
  }
- return <div className="markdown" onClick={activate} onAuxClick={event=>{if(event.button===1)activate(event);}} onKeyDown={event=>{if(event.target.tagName==='IMG'&&['Enter',' '].includes(event.key))activate(event);}} onErrorCapture={event=>{if(event.target.tagName==='IMG'){event.target.classList.add('image-error');event.target.alt=t('图片无法加载：')+(event.target.getAttribute('aria-label')||event.target.alt||t("图片"));}else if(['AUDIO','VIDEO'].includes(event.target.tagName))setMediaError(t("媒体无法播放，请检查文件、网络或编码格式"));}}>
+ return <div className="markdown" onClick={activate} onContextMenu={event=>{const anchor=event.target.closest('[data-link-target]');if(anchor)showLinkMenu(event,anchor.getAttribute('data-link-target'));}} onAuxClick={event=>{if(event.button===1)activate(event);}} onKeyDown={event=>{const anchor=event.target.closest('[data-link-target]');if(anchor)showLinkMenu(event,anchor.getAttribute('data-link-target'));if(event.target.tagName==='IMG'&&['Enter',' '].includes(event.key))activate(event);}} onErrorCapture={event=>{if(event.target.tagName==='IMG'){event.target.classList.add('image-error');event.target.alt=t('图片无法加载：')+(event.target.getAttribute('aria-label')||event.target.alt||t("图片"));}else if(['AUDIO','VIDEO'].includes(event.target.tagName))setMediaError(t("媒体无法播放，请检查文件、网络或编码格式"));}}>
   {rendered.parts.map((part,index)=>part.kind==='markdown'?<div key={index} dangerouslySetInnerHTML={{__html:part.html}}/>:<RichPreview key={`${index}:${part.kind}`} {...part}/>)}
   {copyError&&<small className="message-action-error" role="alert">{copyError}</small>}{mediaError&&<small className="message-action-error" role="alert">{mediaError}</small>}
-  {images.length>0&&<div className="image-attachments">{images.map(image=>{const kind=mediaKind(image.src);if(kind)return <MediaPlayer key={image.id} kind={kind} src={image.src} name={image.alt} cwd={cwd}/>;const src=resolveImage(image.src);return src?<img key={image.id} src={src} alt={image.alt} aria-label={image.alt} role="button" tabIndex={0} loading="lazy" decoding="async" referrerPolicy="no-referrer"/>:<span className="image-error" key={image.id}>{t("图片无法加载：")}{image.alt}</span>;})}</div>}
+  {images.length>0&&<div className="image-attachments">{images.map(image=>{const kind=mediaKind(image.src);if(kind)return <MediaPlayer key={image.id} kind={kind} src={image.src} name={image.alt} cwd={cwd}/>;const src=resolveImage(image.src);return src?<img key={image.id} src={src} data-link-target={localResourcePath(image.src,cwd)||image.src} alt={image.alt} aria-label={image.alt} role="button" tabIndex={0} loading="lazy" decoding="async" referrerPolicy="no-referrer"/>:<span className="image-error" key={image.id}>{t("图片无法加载：")}{image.alt}</span>;})}</div>}
   <AttachmentCards files={attachments} cwd={cwd} exclude={rendered.attachmentLinks}/><SourceCards sources={rendered.sources}/>
  </div>;
 });

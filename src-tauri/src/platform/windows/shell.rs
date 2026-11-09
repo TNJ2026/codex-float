@@ -24,6 +24,24 @@ fn explorer_path(path: &Path) -> Result<Vec<u16>, String> {
     let path = canonical.strip_prefix(r"\\?\").unwrap_or(&canonical);
     Ok(path.encode_utf16().chain(Some(0)).collect())
 }
+pub fn open_file(path: &Path) -> Result<(), String> {
+    let operation: Vec<u16> = "open\0".encode_utf16().collect();
+    let target = explorer_path(path)?;
+    let result = unsafe {
+        windows_sys::Win32::UI::Shell::ShellExecuteW(
+            std::ptr::null_mut(),
+            operation.as_ptr(),
+            target.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            1,
+        )
+    };
+    if result as isize <= 32 {
+        return Err("无法使用默认 App 打开文件，请检查系统文件关联设置".into());
+    }
+    Ok(())
+}
 pub fn reveal_file(path: &Path) -> Result<(), String> {
     use windows_sys::Win32::{
         System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED},

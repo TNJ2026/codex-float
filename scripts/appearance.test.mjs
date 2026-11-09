@@ -11,6 +11,14 @@ test('appearance settings restore saved numbers and recover safely from malforme
  assert.deepEqual(normalizeAppearance({blur:100,transparency:-2}),{blur:60,transparency:0});
  assert.deepEqual(normalizeAppearance({blur:NaN,transparency:Infinity}),{blur:10,transparency:60});
 });
+test('light theme defaults to 25 percent without replacing saved transparency',()=>{
+ for(const value of [null,'{broken','null','{"transparency":"bad"}']){
+  assert.deepEqual(readAppearance({getItem:()=>value},'light'),{blur:10,transparency:25});
+ }
+ assert.deepEqual(readAppearance({getItem:()=>'{"transparency":70}'},'light'),{blur:10,transparency:70});
+ assert.deepEqual(readAppearance({getItem:()=>'{"transparency":0}'},'light'),{blur:10,transparency:0});
+ assert.deepEqual(readAppearance({getItem:()=>null},'dark'),{blur:10,transparency:60});
+});
 test('transparency changes the background tint only, including its endpoints',()=>{
  const properties=new Map(),root={style:{setProperty:(key,value)=>properties.set(key,value)}};
  for(const [value,alpha] of [[0,'0'],[5,'0.05'],[60,'0.6'],[100,'1']]){

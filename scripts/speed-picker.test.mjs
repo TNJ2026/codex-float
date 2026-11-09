@@ -25,14 +25,14 @@ test('speed picker saves selections, rolls back failures, toggles through slash 
  try{
   const {createRoot}=await import('react-dom/client'),{SpeedPicker}=await vite.ssrLoadModule('/src/SpeedPicker.jsx');root=createRoot(document.getElementById('root'));
   const render=()=>act(async()=>root.render(React.createElement(SpeedPicker,{threadId,model,tier,toggleRequest,onSavingChange:value=>guards.push(value),onError:error=>errors.push(error),onApplied:(id,settings)=>{applied.push({id,settings});tier=settings.serviceTier;}})));
-  const click=element=>act(async()=>element.click()),trigger=()=>document.querySelector('[aria-label="切换响应速度"]'),option=label=>[...document.querySelectorAll('[role="menuitemradio"]')].find(row=>row.textContent.startsWith(label));
-  await render();await click(trigger());assert.equal(option('快速模式').disabled,false);assert.equal(option('标准速度').getAttribute('aria-checked'),'true');
-  await click(option('快速模式'));await render();assert.equal(document.querySelector('[role="menu"]'),null);assert.ok(trigger().classList.contains('fast'));assert.deepEqual(calls.find(call=>call.cmd==='update_speed_settings').args,{threadId:'one',model:'m',fast:true});assert.deepEqual(guards,[true,false]);
-  await click(trigger());reject=true;await click(option('标准速度'));assert.match(document.querySelector('[role="alert"]').textContent,/not available/);assert.equal(option('快速模式').getAttribute('aria-checked'),'true');assert.equal(applied.length,1);
-  reject=false;await click(option('标准速度'));await render();assert.equal(trigger().classList.contains('fast'),false);
-  supported=false;await click(trigger());assert.equal(option('快速模式').disabled,true);await act(async()=>document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+  const click=element=>act(async()=>element.click()),trigger=()=>document.querySelector('[aria-label="切换响应速度"]');
+  await render();assert.equal(trigger().getAttribute('aria-pressed'),'false');assert.equal(trigger().hasAttribute('aria-haspopup'),false);
+  await click(trigger());await render();assert.equal(document.querySelector('[role="menu"]'),null);assert.ok(trigger().classList.contains('fast'));assert.equal(trigger().getAttribute('aria-pressed'),'true');assert.deepEqual(calls.find(call=>call.cmd==='update_speed_settings').args,{threadId:'one',model:'m',fast:true});assert.deepEqual(guards,[true,false]);
+  reject=true;await click(trigger());assert.match(errors.at(-1),/not available/);assert.equal(trigger().getAttribute('aria-pressed'),'true');assert.equal(applied.length,1);
+  reject=false;await click(trigger());await render();assert.equal(trigger().classList.contains('fast'),false);
+  supported=false;await click(trigger());assert.match(errors.at(-1),/未提供快速模式/);assert.equal(document.querySelector('[role="menu"]'),null);
   const count=applied.length;toggleRequest++;await render();assert.equal(applied.length,count);assert.match(errors.at(-1),/未提供快速模式/);assert.equal(guards.at(-1),false);
   supported=true;toggleRequest++;await render();await render();assert.equal(tier,'fast');tier='priority';toggleRequest++;await render();await render();assert.equal(tier,'default');
-  defer=true;toggleRequest++;await render();assert.equal(guards.at(-1),true);const before=applied.length;threadId='two';await render();await act(async()=>finish({threadSettings:{serviceTier:'fast'}}));assert.equal(applied.length,before);assert.equal(guards.at(-1),false);
+  defer=true;await click(trigger());assert.equal(guards.at(-1),true);assert.equal(trigger().disabled,true);const before=applied.length,saveCount=calls.filter(call=>call.cmd==='update_speed_settings').length;await click(trigger());assert.equal(calls.filter(call=>call.cmd==='update_speed_settings').length,saveCount);threadId='two';await render();await act(async()=>finish({threadSettings:{serviceTier:'fast'}}));assert.equal(applied.length,before);assert.equal(guards.at(-1),false);
  }finally{if(root)await act(async()=>root.unmount());await vite.close();dom.window.close();keys.forEach((key,index)=>{if(previous[index]===undefined)delete globalThis[key];else globalThis[key]=previous[index];});}
 });

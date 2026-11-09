@@ -145,6 +145,17 @@ pub async fn read_file_preview(path: String) -> Result<FilePreview, String> {
 }
 
 #[tauri::command]
+pub async fn open_file(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = local_path(&path)?;
+        let path = path.canonicalize().map_err(|_| "文件不存在或无法访问")?;
+        crate::platform::shell::open_file(&path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 pub async fn reveal_file(path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let path = local_path(&path)?;
@@ -158,6 +169,20 @@ pub async fn reveal_file(path: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_file_actions_require_local_absolute_paths() {
+        for path in [
+            "relative.txt",
+            "https://example.com/file.pdf",
+            "//server/share/file.pdf",
+            r"\\server\share\file.pdf",
+            "bad\0path",
+        ] {
+            assert!(local_path(path).is_err(), "accepted {path:?}");
+        }
+        let path = std::env::temp_dir().join("中文 文件.pdf");
+        assert_eq!(local_path(path.to_str().unwrap()).unwrap(), path);
+    }
     #[test]
     fn accepts_text_and_rejects_binary() {
         assert_eq!(

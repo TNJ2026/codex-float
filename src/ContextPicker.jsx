@@ -30,7 +30,7 @@ export function ContextChips({items,onRemove,onToggleBrowser}){
 }
 export function ContextButton({onClick,disabled,open}){
  useLanguage();
- return <button type="button" className="icon-button attachment-button context-button" title={t("添加上下文（@ 搜索上下文，$ 搜索技能）")} aria-label={t("添加上下文")} aria-expanded={open} aria-haspopup="dialog" disabled={disabled} onClick={onClick}><Plus size={17}/></button>;
+ return <button type="button" className="icon-button attachment-button context-button" title={t("添加上下文（@ 搜索上下文，$ 搜索技能）")} aria-label={t("添加上下文")} aria-expanded={open} aria-haspopup="dialog" disabled={disabled} onClick={onClick}><Plus size={16}/></button>;
 }
 function SnippetEditor({initial='',onAdd,onClose}){
  useLanguage();

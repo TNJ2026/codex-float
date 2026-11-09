@@ -203,16 +203,19 @@ impl Client {
                 .map(Some)
                 .map_err(|_| cursor_error.unwrap_or_else(|| "尚未收到聊天状态，请刷新重试".into()))
         })();
-        if require_snapshot {
+        // A confirmation snapshot for the selected chat must retain its live subscription.
+        let is_bound = self.binding.lock().unwrap().as_ref()
+            .is_some_and(|binding| binding.0 == thread && binding.1 == owner);
+        if require_snapshot && !is_bound {
             let _ = self.follow(thread, owner, false);
         }
         self.snapshots.lock().unwrap().remove(thread);
         result
     }
 
-    pub(crate) fn inspect_child(&self, thread: &str, owner: &str) -> Result<Value, String> {
+    pub(crate) fn inspect_thread(&self, thread: &str, owner: &str) -> Result<Value, String> {
         self.load_history(thread, owner, true)?
-            .ok_or_else(|| "尚未收到子代理状态，请刷新重试".into())
+            .ok_or_else(|| "尚未收到聊天状态，请刷新重试".into())
     }
 }
 #[derive(Default)]
@@ -238,6 +241,37 @@ pub(crate) fn shutdown(app: &tauri::AppHandle) {
 #[cfg(test)]
 mod history_tests {
     use super::*;
+
+    #[test]
+    fn confirmation_snapshots_preserve_only_the_selected_chat_subscription() {
+        for bound in [true, false] {
+            let (writer, mut outgoing) = tokio::sync::mpsc::unbounded_channel();
+            let client = Client {
+                writer,
+                pending: Mutex::new(HashMap::new()),
+                id: Mutex::new("test-client".into()),
+                binding: Mutex::new(bound.then(|| ("thread".into(), "owner".into()))),
+                snapshots: Mutex::new(HashMap::new()),
+                alive: std::sync::atomic::AtomicBool::new(true),
+            };
+            std::thread::scope(|scope| {
+                let worker = scope.spawn(|| client.inspect_thread("thread", "owner"));
+                assert_eq!(outgoing.blocking_recv().unwrap()["params"]["following"], true);
+                let request = outgoing.blocking_recv().unwrap();
+                client.snapshots.lock().unwrap()["thread"]
+                    .send(json!({"latestThreadSettings":{"permissions":":read-only"}})).unwrap();
+                client.pending.lock().unwrap()[request["requestId"].as_str().unwrap()]
+                    .send(json!({"resultType":"success","result":{}})).unwrap();
+                assert_eq!(worker.join().unwrap().unwrap()["latestThreadSettings"]["permissions"], ":read-only");
+                if bound {
+                    assert!(outgoing.try_recv().is_err());
+                } else {
+                    assert_eq!(outgoing.try_recv().unwrap()["params"]["following"], false);
+                }
+                assert!(client.snapshots.lock().unwrap().is_empty());
+            });
+        }
+    }
 
     #[test]
     fn cursor_error_only_recovers_when_a_snapshot_arrives() {

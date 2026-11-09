@@ -1,21 +1,134 @@
+pub use super::toolbar::install_menu;
 use objc2::{msg_send, AnyThread, MainThreadMarker};
 use objc2_app_kit::{
-    NSAnimationBlockingMode, NSView, NSViewAnimation, NSViewAnimationEndFrameKey,
-    NSViewAnimationStartFrameKey, NSViewAnimationTargetKey, NSWindow, NSWindowTitleVisibility,
+    NSAnimationBlockingMode, NSNormalWindowLevel, NSPopUpMenuWindowLevel, NSView, NSViewAnimation,
+    NSViewAnimationEndFrameKey, NSViewAnimationStartFrameKey, NSViewAnimationTargetKey, NSWindow,
+    NSWindowCollectionBehavior, NSWindowTitleVisibility,
 };
 use objc2_foundation::{NSArray, NSDictionary, NSPoint, NSRect, NSSize, NSValue};
 use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewWindow, Window, WindowEvent};
-
-pub use super::toolbar::install_menu;
 pub fn refresh_language(window: &WebviewWindow) {
     super::toolbar::refresh_language(window);
 }
 pub fn initialize(window: &WebviewWindow) -> Result<(), String> {
     super::toolbar::install(window)?;
-    super::drag::install(window)
+    let pointer = window.ns_window().map_err(|error| error.to_string())?;
+    // SAFETY: Initialization is on AppKit's main thread and Tauri owns this window.
+    let native = unsafe { pointer.cast::<NSWindow>().as_ref() }.ok_or("无法获取原生窗口")?;
+    if let Some(content) = native.contentView() {
+        super::text_input::install_window_level(&content);
+    }
+    let pinned = window
+        .is_always_on_top()
+        .map_err(|error| error.to_string())?;
+    set_pinned(window, pinned).map_err(|error| error.to_string())?;
+    super::drag::install(window)?;
+    Ok(())
+}
+// Keep the existing NSWindow/WebView. Pinned overlays must survive app hiding
+// during fullscreen transitions and sit above browser video windows.
+pub fn is_pinned(window: &WebviewWindow) -> tauri::Result<bool> {
+    let _main =
+        MainThreadMarker::new().ok_or_else(|| std::io::Error::other("窗口置顶必须在主线程读取"))?;
+    let pointer = window.ns_window()?;
+    if pointer.is_null() {
+        return Err(std::io::Error::other("无法获取原生窗口").into());
+    }
+    // SAFETY: Tauri owns the window and this call runs on the AppKit thread.
+    Ok(unsafe { (&*pointer.cast::<NSWindow>()).level() > NSNormalWindowLevel })
+}
+pub fn set_pinned(window: &WebviewWindow, pinned: bool) -> tauri::Result<()> {
+    let _main =
+        MainThreadMarker::new().ok_or_else(|| std::io::Error::other("窗口置顶必须在主线程更新"))?;
+    let pointer = window.ns_window()?;
+    if pointer.is_null() {
+        return Err(std::io::Error::other("无法获取原生窗口").into());
+    }
+    window.app_handle().set_activation_policy(if pinned {
+        tauri::ActivationPolicy::Accessory
+    } else {
+        tauri::ActivationPolicy::Regular
+    })?;
+    configure_spaces(window).map_err(std::io::Error::other)?;
+    // SAFETY: Native policies and ordering are changed together on the main
+    // thread; no queued Tauri level change can overwrite the overlay level.
+    unsafe {
+        let native = &*pointer.cast::<NSWindow>();
+        native.setCanHide(!pinned);
+        native.setHidesOnDeactivate(false);
+        native.setLevel(if pinned {
+            // Leave system input-method and utility UI above this overlay.
+            // NSTextInputClient also reports this level for candidate placement.
+            NSPopUpMenuWindowLevel
+        } else {
+            NSNormalWindowLevel
+        });
+        if pinned {
+            native.orderFrontRegardless();
+        }
+    }
+    Ok(())
+}
+fn floating_collection_behavior(current: NSWindowCollectionBehavior) -> NSWindowCollectionBehavior {
+    // These modes are mutually exclusive with joining every Space and acting
+    // as an auxiliary window alongside another application's fullscreen window.
+    let conflicting = NSWindowCollectionBehavior::MoveToActiveSpace
+        | NSWindowCollectionBehavior::FullScreenPrimary
+        | NSWindowCollectionBehavior::FullScreenNone
+        | NSWindowCollectionBehavior::Primary
+        | NSWindowCollectionBehavior::Auxiliary;
+    (current & !conflicting)
+        | NSWindowCollectionBehavior::CanJoinAllSpaces
+        | NSWindowCollectionBehavior::FullScreenAuxiliary
+        | NSWindowCollectionBehavior::CanJoinAllApplications
+}
+fn configure_spaces(window: &WebviewWindow) -> Result<(), String> {
+    let _main = MainThreadMarker::new().ok_or("窗口空间行为必须在主线程更新")?;
+    let pointer = window.ns_window().map_err(|error| error.to_string())?;
+    if pointer.is_null() {
+        return Err("无法获取原生窗口".into());
+    }
+    // SAFETY: Tauri owns this NSWindow and initialization runs on the AppKit thread.
+    unsafe {
+        let native = &*pointer.cast::<NSWindow>();
+        native.setCollectionBehavior(floating_collection_behavior(native.collectionBehavior()));
+    }
+    Ok(())
 }
 pub fn titlebar_height(window: &WebviewWindow) -> f64 {
     super::toolbar::height(window)
+}
+
+#[cfg(test)]
+mod space_tests {
+    use super::*;
+
+    #[test]
+    fn fullscreen_overlay_preserves_other_policies_without_conflicting_space_modes() {
+        for mode in [
+            NSWindowCollectionBehavior::FullScreenPrimary,
+            NSWindowCollectionBehavior::FullScreenNone,
+            NSWindowCollectionBehavior::Primary,
+            NSWindowCollectionBehavior::Auxiliary,
+        ] {
+            let current = mode
+                | NSWindowCollectionBehavior::MoveToActiveSpace
+                | NSWindowCollectionBehavior::IgnoresCycle;
+            let result = floating_collection_behavior(current);
+            assert!(result.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
+            assert!(result.contains(NSWindowCollectionBehavior::FullScreenAuxiliary));
+            assert!(result.contains(NSWindowCollectionBehavior::CanJoinAllApplications));
+            assert!(result.contains(NSWindowCollectionBehavior::IgnoresCycle));
+            assert!(!result.intersects(
+                NSWindowCollectionBehavior::MoveToActiveSpace
+                    | NSWindowCollectionBehavior::FullScreenPrimary
+                    | NSWindowCollectionBehavior::FullScreenNone
+                    | NSWindowCollectionBehavior::Primary
+                    | NSWindowCollectionBehavior::Auxiliary
+            ));
+            assert_eq!(floating_collection_behavior(result), result);
+        }
+    }
 }
 
 fn native_controls(window: &WebviewWindow, hidden: bool) -> Result<(), String> {

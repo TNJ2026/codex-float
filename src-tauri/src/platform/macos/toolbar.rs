@@ -3,10 +3,11 @@ use objc2::{
     MainThreadMarker, MainThreadOnly,
 };
 use objc2_app_kit::{
+    NSAppearanceCustomization, NSAppearanceNameAqua, NSAppearanceNameDarkAqua,
     NSButton, NSButtonType, NSCellImagePosition, NSColor, NSImage, NSImageScaling,
     NSImageSymbolConfiguration, NSImageSymbolScale, NSStackView, NSLayoutAttribute,
     NSUserInterfaceLayoutOrientation, NSToolbar, NSToolbarDelegate,
-    NSToolbarDisplayMode, NSToolbarItem, NSToolbarItemIdentifier, NSWindow, NSWindowStyleMask,
+    NSToolbarDisplayMode, NSToolbarItem, NSToolbarItemIdentifier, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
 use objc2_foundation::{
@@ -56,6 +57,74 @@ fn vector_image(bytes: &[u8], label: &str) -> Option<Retained<NSImage>> {
     }
     icon
 }
+fn apply_button_tint(button: &NSButton) {
+    // Resolve the window's actual appearance, including an explicit app theme.
+    let names = NSArray::from_slice(unsafe { &[NSAppearanceNameAqua, NSAppearanceNameDarkAqua] });
+    let light = button.effectiveAppearance().bestMatchFromAppearancesWithNames(&names)
+        .is_some_and(|name| name.isEqualToString(unsafe { NSAppearanceNameAqua }));
+    let pinned = button.tag() == 1 && button.state() == 1;
+    let tint = if light {
+        Some(if pinned {
+            NSColor::colorWithSRGBRed_green_blue_alpha(0.0, 0.32, 0.66, 1.0)
+        } else {
+            NSColor::colorWithSRGBRed_green_blue_alpha(0.20, 0.22, 0.25, 1.0)
+        })
+    } else {
+        pinned.then(NSColor::controlAccentColor)
+    };
+    button.setContentTintColor(tint.as_deref());
+}
+
+define_class!(
+    #[unsafe(super = NSView)]
+    #[thread_kind = MainThreadOnly]
+    #[ivars = Retained<NSStackView>]
+    struct ToolbarActionsView;
+    unsafe impl NSObjectProtocol for ToolbarActionsView {}
+    impl ToolbarActionsView {
+        #[unsafe(method(layout))]
+        fn layout_actions(&self) {
+            unsafe { let _: () = msg_send![super(self), layout]; }
+            let bounds = self.bounds();
+            let mut inset = 0.0_f64;
+            if let Some(window) = self.window() {
+                if let Some(close) = window.standardWindowButton(NSWindowButton::CloseButton) {
+                    let left = close.convertRect_toView(close.bounds(), None).origin.x;
+                    let frame = self.convertRect_toView(bounds, None);
+                    let right = window.frame().size.width - frame.origin.x - frame.size.width;
+                    // Include the icon's six-point inset inside its 28-point
+                    // hit target, so the visible edges mirror the system controls.
+                    inset = (left - right - 6.0).clamp(0.0, 24.0);
+                }
+            }
+            self.ivars().setFrame(NSRect::new(
+                NSPoint::new(bounds.size.width - 92.0 - inset, (bounds.size.height - 28.0) / 2.0),
+                NSSize::new(92.0, 28.0),
+            ));
+        }
+        #[unsafe(method(viewDidMoveToWindow))]
+        fn moved_to_window(&self) {
+            unsafe { let _: () = msg_send![super(self), viewDidMoveToWindow]; }
+            self.setNeedsLayout(true);
+        }
+    }
+);
+
+define_class!(
+    #[unsafe(super = NSButton)]
+    #[thread_kind = MainThreadOnly]
+    struct ToolbarButton;
+    unsafe impl NSObjectProtocol for ToolbarButton {}
+    impl ToolbarButton {
+        #[unsafe(method(viewDidChangeEffectiveAppearance))]
+        fn appearance_changed(&self) {
+            // SAFETY: Preserve AppKit's appearance update before applying our tint.
+            unsafe { let _: () = msg_send![super(self), viewDidChangeEffectiveAppearance]; }
+            apply_button_tint(self);
+        }
+    }
+);
+
 fn pin_item(item: &NSToolbarItem, pinned: bool) {
     let label = if pinned { text("取消置顶", "Disable always on top") } else { text("置顶", "Always on top") };
     item.setLabel(&NSString::from_str(label));
@@ -66,8 +135,7 @@ fn pin_item(item: &NSToolbarItem, pinned: bool) {
         if let Some(button) = view.downcast_ref::<NSButton>() {
             button.setImage(icon.as_deref());
             button.setState(if pinned { 1 } else { 0 });
-            let tint = pinned.then(NSColor::controlAccentColor);
-            button.setContentTintColor(tint.as_deref());
+            apply_button_tint(button);
             button.setToolTip(Some(&NSString::from_str(label)));
             unsafe {
                 let _: () = msg_send![button, setAccessibilityLabel: &*NSString::from_str(label)];
@@ -78,8 +146,8 @@ fn pin_item(item: &NSToolbarItem, pinned: bool) {
 fn perform(app: &tauri::AppHandle, action: &str) {
     if action == "pin" {
         if let Some(window) = app.get_webview_window("main") {
-            let pinned = !window.is_always_on_top().unwrap_or(false);
-            if window.set_always_on_top(pinned).is_ok() {
+            let pinned = !super::window::is_pinned(&window).unwrap_or(false);
+            if super::window::set_pinned(&window, pinned).is_ok() {
                 TOOLBAR.with(|slot| {
                     if let Some((_, delegate)) = slot.borrow().as_ref() {
                         for item in delegate.ivars().actions.borrow().iter() {
@@ -136,12 +204,18 @@ impl ToolbarDelegate {
             stack.setOrientation(NSUserInterfaceLayoutOrientation::Horizontal);
             stack.setAlignment(NSLayoutAttribute::CenterY);
             stack.setSpacing(4.0);
-            stack.setTranslatesAutoresizingMaskIntoConstraints(false);
-            stack.widthAnchor().constraintEqualToConstant(92.0).setActive(true);
-            stack.heightAnchor().constraintEqualToConstant(28.0).setActive(true);
+            stack.setFrame(NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(92.0, 28.0)));
+            let container = ToolbarActionsView::alloc(self.mtm()).set_ivars(stack.clone());
+            let container: Retained<ToolbarActionsView> = unsafe {
+                msg_send![super(container), initWithFrame: NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(116.0, 28.0))]
+            };
+            container.addSubview(&stack);
+            container.setTranslatesAutoresizingMaskIntoConstraints(false);
+            container.widthAnchor().constraintEqualToConstant(116.0).setActive(true);
+            container.heightAnchor().constraintEqualToConstant(28.0).setActive(true);
             let item = NSToolbarItem::initWithItemIdentifier(NSToolbarItem::alloc(self.mtm()), identifier);
             item.setBordered(false);
-            item.setView(Some(&stack));
+            item.setView(Some(&container));
             self.ivars().actions.replace(actions);
             return Some(item);
         }
@@ -160,7 +234,9 @@ impl ToolbarDelegate {
         // Use identical custom button views for all three actions. Mixing
         // these with a standard image toolbar item gives unequal center spacing.
         {
-            let button = NSButton::new(self.mtm());
+            // SAFETY: This native button subclass only adds appearance-aware tinting.
+            let button: Retained<ToolbarButton> = unsafe { msg_send![ToolbarButton::alloc(self.mtm()), init] };
+            button.setTag(if identifier.to_string() == "float.pin" { 1 } else { 0 });
             button.setTitle(&NSString::from_str(""));
             button.setButtonType(if identifier.to_string() == "float.pin" {
                 NSButtonType::PushOnPushOff
@@ -171,6 +247,7 @@ impl ToolbarDelegate {
             button.setBordered(false);
             button.setImageScaling(NSImageScaling::ScaleNone);
             button.setImage(image(symbol, label).as_deref());
+            apply_button_tint(&button);
             button.setFrame(NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(28.0, 28.0)));
             // A frame is only an initial size. In the SDK 15 compatibility
             // layout AppKit otherwise shrinks these image-only custom views
@@ -199,7 +276,7 @@ impl ToolbarDelegate {
                 self.ivars()
                     .app
                     .get_webview_window("main")
-                    .is_some_and(|w| w.is_always_on_top().unwrap_or(false)),
+                    .is_some_and(|w| super::window::is_pinned(&w).unwrap_or(false)),
             );
         }
         // SAFETY: This retained delegate implements the exact target selector.
@@ -338,7 +415,7 @@ pub fn refresh_language(window: &WebviewWindow) {
             for item in delegate.ivars().actions.borrow().iter() {
                 let identifier = item.itemIdentifier().to_string();
                 if identifier == "float.pin" {
-                    pin_item(&item, window.is_always_on_top().unwrap_or(false));
+                    pin_item(&item, super::window::is_pinned(&window).unwrap_or(false));
                     continue;
                 }
                 let label = match identifier.as_str() {

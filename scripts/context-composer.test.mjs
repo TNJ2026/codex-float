@@ -120,8 +120,10 @@ test('composer keyboard completion sends structured context without a prompt and
   await type('/test-skill');await key('Enter');assert.match(document.querySelector('.context-chip').textContent,/test-skill/);
   await act(async()=>document.querySelector('[aria-label="移除上下文 test-skill"]').click());
   const beforeShortcuts=calls.filter(call=>call.cmd==='send_prompt').length;
-  await type('/permissions');await key('Enter');assert.match(document.querySelector('#permission-settings-popup')?.textContent||'',/完全访问/);
-  await key('Escape');
+  await type('/permissions');await key('Enter');assert.ok(document.querySelector('.chat-status'));
+  assert.equal(document.querySelector('#permission-settings-popup'),null,'the permissions command only displays status');
+  assert.ok(!calls.some(call=>call.cmd==='run_chat_command'&&call.args.command==='permissions'));
+  await act(async()=>document.querySelector('[aria-label="关闭预览"]').click());
   await type('/model');await key('Enter');assert.ok(document.querySelector('#model-settings-popup'));
   await key('Escape');
   await type('/status');await key('Enter');assert.ok(document.querySelector('.chat-status'));await act(async()=>document.querySelector('[aria-label="关闭预览"]').click());

@@ -14,14 +14,30 @@ test('async questions preserve the exact desktop question identity and response 
  // The installed desktop parser removes only the exact opening/closing tags.
  assert.deepEqual(JSON.parse(text.slice(34,-35)),parseQuestionReply(text));
 });
-test('only an accepted, identified reply resolves the original question',()=>{
+test('accepted replies resolve questions and pending steering leaves them open',()=>{
  const [request]=asyncQuestionRequests(state([item]));
  const text=questionReplyText(request,{answers:{[request.params.questions[0].id]:{answers:['回答 A']}}});
  const input=[{type:'text',text}];
  assert.equal(asyncQuestionRequests(state([item,{type:'userMessage',content:input}])).length,0);
  assert.equal(asyncQuestionRequests(state([item,{type:'steeringUserMessage',status:'accepted',input}])).length,0);
  assert.equal(asyncQuestionRequests(state([item,{type:'steeringUserMessage',status:'pending',input}])).length,1);
- assert.equal(asyncQuestionRequests(state([item,{type:'userMessage',content:[{type:'text',text:'回答 A'}]}])).length,1);
+ assert.equal(asyncQuestionRequests(state([item,{type:'userMessage',content:[{type:'text',text:'回答 A'}]}])).length,0);
+});
+test('later user prompts dismiss old questions when rebuilding conversation history',()=>{
+ const prompt={type:'userMessage',content:[{type:'text',text:'将添加附件按钮和添加上下文按钮改为一样的大小'}]};
+ const turns=[...state([item],'completed').turns,{status:'completed',items:[prompt]}];
+ assert.deepEqual(asyncQuestionRequests({turns}),[]);
+ assert.deepEqual(asyncQuestionRequests(JSON.parse(JSON.stringify({turns}))),[]);
+ assert.deepEqual(asyncQuestionRequests(state([item,{...prompt,type:'steeringUserMessage',status:'accepted'}])),[]);
+ assert.equal(asyncQuestionRequests(state([item,{...prompt,type:'steeringUserMessage',status:'pending'}])).length,1);
+ assert.equal(asyncQuestionRequests(state([prompt,item])).length,1);
+});
+test('background page events and partial structured answers do not dismiss remaining questions',()=>{
+ const multiple={...item,questions:[...item.questions,{title:'第二个问题'}]};
+ const [request]=asyncQuestionRequests(state([multiple]));
+ const text=questionReplyText({...request,params:{questions:request.params.questions.slice(0,1)}},{answers:{[request.params.questions[0].id]:{answers:['回答 A']}}});
+ const items=[multiple,{type:'userMessage',content:[{type:'text',text:'<external_codex_apps_open_page>page</external_codex_apps_open_page>'}]},{type:'userMessage',content:[{type:'text',text}]}];
+ assert.deepEqual(asyncQuestionRequests(state(items))[0].params.questions.map(q=>q.question),['第二个问题']);
 });
 test('completed question turns remain answerable across later turns',()=>{
  assert.equal(asyncQuestionRequests(state([item],'completed')).length,1);

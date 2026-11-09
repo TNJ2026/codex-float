@@ -42,7 +42,6 @@ pub fn run() {
             services::catalog::context_catalog,
             services::model_settings::read_model_options,
             services::model_settings::update_model_settings,
-            services::permissions::update_permission_settings,
             services::chat_commands::run_chat_command,
             services::message_actions::copy_text,
             services::message_actions::edit_sent_message,
@@ -68,6 +67,7 @@ pub fn run() {
             services::mini_mode::get_mini_mode,
             services::stop::stop_task,
             services::links::open_url,
+            services::links::open_file,
             services::links::read_file_preview,
             services::links::reveal_file,
         ])

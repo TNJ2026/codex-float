@@ -1,0 +1,10 @@
+Use case: infographic-diagram.
+Create a polished, technically accurate Chinese software architecture diagram for the local desktop project CodexFloat. Wide landscape, high resolution, white/off-white background, crisp typography, restrained blue/teal/purple accents, thin orthogonal arrows, generous spacing. Flat professional documentation diagram, no perspective or decorative illustration. Title exactly "CodexFloat 项目架构". Subtitle "React 19 · Tauri 2 · Rust ｜ Windows / macOS".
+Architecture layout: big application boundary on left 72%, external systems right 28%. Inside application use stacked layers:
+1. "界面层 · React" with two shell boxes "MacOSWindow / WindowsWindow" then "SessionView · 聊天编排". Feature chips "聊天与输入" "上下文与附件" "Markdown / 图表 / Diff" "审批与子代理" "MCP App 卡片" "设置与状态球".
+2. "状态与展示模型" with boxes "model.js · 快照与增量补丁" and "transcript / interactions / subagents".
+3. horizontal boundary "Tauri Bridge" with downward arrow labeled "invoke · 命令调用" and upward arrow labeled "listen · codex-stream / codex-disconnected".
+4. "原生服务层 · Rust" with two modules: "services/" containing chips "上下文 / 附件" "模型 / 权限 / 速度" "审批 / 停止 / 分叉" "额度 / 输入预测" "MCP 工具桥接 / 预览"; and "codex/" containing "client.rs · RPC / 订阅 / 连接生命周期", "commands.rs · 连接 / 发送 / 回复", "index.rs · 本地聊天与模型索引".
+5. "平台适配层 · platform/" split "Windows · 命名管道 / 亚克力 / 系统交互" and "macOS · Unix Socket / AppKit / 原生材质".
+External systems right in 3 boxes: top "Codex 桌面端" with subtext "已有聊天 · 任务执行 · 工具与子代理"; middle "本地数据与系统" with subtext "CODEX_HOME · 聊天索引 · 模型缓存" plus "文件 / 剪贴板 / 浏览器 / IDE"; bottom "Codex CLI / MCP 服务" subtext "额度查询 · 独立预测 · 卡片工具调用".
+Draw bidirectional local IPC connection from codex/client through platform transport to Codex desktop. Draw thin arrows index to CODEX_HOME, services context/attachment to local systems, services usage/predictions/MCP to CLI/MCP. Keep arrows outside label boxes and minimize crossing. Small footer note exactly "连接已有 Codex 聊天；ChatGPT 实验入口当前未启用". No cloud backend or direct model API invented, no mobile architecture, no database server, no ChatGPT as active subsystem. Chinese labels legible and correctly spelled; source file names exact.

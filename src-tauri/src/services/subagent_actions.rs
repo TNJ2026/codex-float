@@ -100,7 +100,7 @@ pub async fn subagent_action(
         let owner = owner["handledByClientId"]
             .as_str()
             .ok_or("子代理未运行，请在主 App 打开其对话")?;
-        let state = client.inspect_child(&child_id, owner)?;
+        let state = client.inspect_thread(&child_id, owner)?;
         check()?;
         if action == "inspect" {
             return Ok(json!({"state":state}));

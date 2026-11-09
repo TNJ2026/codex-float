@@ -32,7 +32,7 @@ import {attachmentMessage} from './attachments';
 import {ContextButton,ContextChips,ContextPicker,useContextDraft} from './ContextPicker';
 import {contextMessage,mentionAt} from './context';
 import {ModelPicker} from './ModelPicker';
-import {PermissionPicker} from './PermissionPicker';
+import {PermissionStatus} from './PermissionStatus';
 import {SlashMenu,ChatStatus} from './SlashMenu';
 import {slashAt,slashCommands} from './slash-commands';
 import {withModelSettings} from './model-settings';
@@ -58,9 +58,8 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
  const [forking,setForking]=useState(null),[forkSaving,setForkSaving]=useState(false),forkDraft=useRef(null),forkLock=useRef(false);
  const [editing,setEditing]=useState(null),[editSaving,setEditSaving]=useState(false),editLock=useRef(false);
  const [modelSaving,setModelSaving]=useState(false);
- const [permissionSaving,setPermissionSaving]=useState(false);
  const [speedSaving,setSpeedSaving]=useState(false),[speedToggleRequest,setSpeedToggleRequest]=useState(0);
- const [commandSaving,setCommandSaving]=useState(false),[commandMessage,setCommandMessage]=useState(''),[statusOpen,setStatusOpen]=useState(false),[modelOpenRequest,setModelOpenRequest]=useState(0),[permissionOpenRequest,setPermissionOpenRequest]=useState(0);
+ const [commandSaving,setCommandSaving]=useState(false),[commandMessage,setCommandMessage]=useState(''),[statusOpen,setStatusOpen]=useState(false),[modelOpenRequest,setModelOpenRequest]=useState(0);
  const commandLock=useRef(false);
  const [stopping,setStopping]=useState(false);
  const stoppingRef=useRef(false);
@@ -117,7 +116,7 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
  const selectedProjectTitle=selectedThread?.project_source==='workspace'?t("{0}（根据工作目录匹配）",[selectedProject]):selectedProject;
  const contextCwd=conversation?.cwd||conversation?.latestThreadSettings?.cwd||'';
  const contextRoots=[...new Set([contextCwd,...contextDraft.items.filter(item=>item.kind==='folder').map(item=>item.path)].filter(Boolean))].slice(0,8);
- const editDisabled=sending||stopping||modelSaving||permissionSaving||speedSaving||commandSaving||editSaving||forkSaving||status!=='live'||selected!==boundRef.current;
+ const editDisabled=sending||stopping||modelSaving||speedSaving||commandSaving||editSaving||forkSaving||status!=='live'||selected!==boundRef.current;
  const prediction=useComposerPrediction({threadId:selected,conversation,enabled:predictionsEnabled,available:!busy&&!editDisabled&&!compact&&!editing&&!forking&&!requests.length&&!contextOpen&&!uploads.preparing,draft,hasAttachments:!!(uploads.attachments.length||contextDraft.items.length)});
  function predictionKeys(e){
   const action=predictionKey(e,prediction.text);
@@ -203,7 +202,7 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
   setSlash(next);setMention(!next&&collapsed?mentionAt(element.value,element.selectionStart):null);if(next)setContextOpen(false);
  }
  async function chooseCommand(row,token=activeSlash){
-  if(row.disabled||commandLock.current||modelSaving||permissionSaving||speedSaving||editSaving||forkSaving||sending||status!=='live'||selected!==boundRef.current)return;
+  if(row.disabled||commandLock.current||modelSaving||speedSaving||editSaving||forkSaving||sending||status!=='live'||selected!==boundRef.current)return;
   if(row.kind==='command'&&row.id==='compact'&&busy)return;
   const previous=draft,target=selected,remaining=token?draft.slice(token.end):draft;
   if(row.kind==='skill'){
@@ -216,7 +215,7 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
   }
   setDraft(remaining);
   if(row.id==='model'){setModelOpenRequest(value=>value+1);return;}
-  if(row.id==='permissions'){setPermissionOpenRequest(value=>value+1);return;}
+  if(row.id==='permissions'){setStatusOpen(true);return;}
   if(row.id==='status'){setStatusOpen(true);return;}
   if(row.id==='fast'){setSpeedToggleRequest(value=>value+1);return;}
   commandLock.current=true;setCommandSaving(true);
@@ -329,7 +328,7 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
   if(activeSlash){commandSelect.current?.(commandIndex);return;}
   const direct=slashAt(draft),command=direct&&slashCommands.find(entry=>entry.id===direct.query.trim());
   if(command){chooseCommand({...command,kind:'command'},direct);return;}
-  if((!draft.trim()&&!uploads.attachments.length&&!contextDraft.items.length)||modelSaving||permissionSaving||speedSaving||commandSaving||editSaving||forkSaving||uploads.preparing||sendingRef.current||stoppingRef.current||status!=='live'||selected!==boundRef.current)return;
+  if((!draft.trim()&&!uploads.attachments.length&&!contextDraft.items.length)||modelSaving||speedSaving||commandSaving||editSaving||forkSaving||uploads.preparing||sendingRef.current||stoppingRef.current||status!=='live'||selected!==boundRef.current)return;
   const submittedDraft=draft,submittedAttachments=uploads.attachments,submittedContexts=contextDraft.items,threadId=boundRef.current;
   const local={id:crypto.randomUUID(),role:'user',text:attachmentMessage(contextMessage(submittedDraft,submittedContexts),submittedAttachments).trim(),images:submittedAttachments.filter(file=>file.image).map(file=>({id:file.path,src:file.path,alt:file.name})),pending:true,baselineIds:new Set(messagesOf(live.current.state).map(m=>m.id))};
   sendingRef.current=true;
@@ -397,18 +396,18 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
    {sendWarning&&sendWarning.threadId===selected&&<p className="composer-command-status" role="status">{t("消息启动确认超时，发送结果待确认；任务可能仍会继续，请检查消息记录，避免重复发送。")}</p>}
    {prediction.failure&&<p className="prediction-error" title={prediction.failure}>{t("预测暂不可用")}<button type="button" aria-label={t("关闭预测提示")} onClick={prediction.dismiss}>×</button></p>}
    {commandMessage&&<p className="composer-command-status" role="status">{commandMessage}</p>}
-   <SlashMenu scope={selected} cwd={contextCwd} token={activeSlash} busy={busy} disabled={status!=='live'||selected!==boundRef.current||sending||modelSaving||permissionSaving||speedSaving||commandSaving||editSaving||forkSaving} onClose={closeSlash} onSelect={chooseCommand} onRows={setCommandRows} onSelectRef={commandSelect} activeIndex={commandIndex}/>
+   <SlashMenu scope={selected} cwd={contextCwd} token={activeSlash} busy={busy} disabled={status!=='live'||selected!==boundRef.current||sending||modelSaving||speedSaving||commandSaving||editSaving||forkSaving} onClose={closeSlash} onSelect={chooseCommand} onRows={setCommandRows} onSelectRef={commandSelect} activeIndex={commandIndex}/>
    <ContextPicker scope={selected} cwd={contextCwd} roots={contextRoots} mention={activeMention} open={contextOpen} onClose={closeContext} onAdd={addContext} onError={setError} initialSelection={snippetSelection} onRows={setContextRows} onSelectRef={contextSelect} activeIndex={contextIndex}/>
    <div className={'composer'+(uploads.dragging?' dragging':'')} onDragOver={uploads.onDragOver} onDragLeave={uploads.onDragLeave} onDrop={uploads.onDrop}>
     <ContextChips items={contextDraft.items} onRemove={contextDraft.remove} onToggleBrowser={contextDraft.toggleBrowser}/>
     <ComposerAttachments files={uploads.attachments} onRemove={uploads.remove} preparing={uploads.preparing} dragging={uploads.dragging}/>
     <div className="composer-input-wrap"><textarea id="prompt-input" ref={draftBox} aria-label={t("提示词")} rows="2" value={draft} onChange={e=>{setDraft(e.target.value);updateMention(e.target);}} onSelect={e=>updateMention(e.target)} onPaste={uploads.onPaste} onKeyDown={e=>{uploads.onKeyDown(e);if(contextKeys(e)||predictionKeys(e))return;if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();send();}}} aria-describedby={prediction.text?'composer-prediction':undefined} aria-controls={activeSlash?'slash-suggestions':activeMention?'context-suggestions':undefined} aria-activedescendant={activeSlash&&commandRows.length?`slash-option-${commandIndex}`:activeMention&&contextRows.length?`context-option-${contextIndex}`:undefined} placeholder={prediction.text?'':busy?t("告诉 Codex 接下来怎么做…"):t("发送消息，/ 命令，$ 技能…")}/><ComposerPrediction text={prediction.text}/></div>
     <div className="composer-bottom">
-     <div className="composer-leading"><AttachmentButton onClick={uploads.choose} disabled={uploads.preparing||sending}/><ContextButton open={contextOpen||!!activeMention} disabled={sending} onClick={()=>{setSnippetSelection(draft.slice(draftBox.current?.selectionStart||0,draftBox.current?.selectionEnd||0));setMention(null);closeSlash();setContextOpen(value=>!value);}}/><PermissionPicker openRequest={permissionOpenRequest} threadId={selected} conversation={conversation} disabled={compact||status!=='live'||selected!==boundRef.current||!conversation||sending||modelSaving||speedSaving||commandSaving||editSaving||forkSaving} onApplied={threadSettingsApplied} onError={setError} onSavingChange={setPermissionSaving}/></div>
+     <div className="composer-leading"><AttachmentButton onClick={uploads.choose} disabled={uploads.preparing||sending}/><ContextButton open={contextOpen||!!activeMention} disabled={sending} onClick={()=>{setSnippetSelection(draft.slice(draftBox.current?.selectionStart||0,draftBox.current?.selectionEnd||0));setMention(null);closeSlash();setContextOpen(value=>!value);}}/><PermissionStatus conversation={conversation} connected={status==='live'&&selected===boundRef.current}/></div>
      <div className="footer-meta">
 
-    <span className="model-summary"><SpeedPicker threadId={selected} model={conversation?.latestModel} tier={serviceTier} toggleRequest={speedToggleRequest} disabled={compact||status!=='live'||selected!==boundRef.current||!conversation||sending||modelSaving||permissionSaving||commandSaving||editSaving||forkSaving} onApplied={threadSettingsApplied} onError={setError} onSavingChange={setSpeedSaving}/><ModelPicker openRequest={modelOpenRequest} threadId={selected} model={conversation?.latestModel} effort={conversation?.latestReasoningEffort} names={modelNames} busy={busy} disabled={speedSaving||editSaving||forkSaving||commandSaving||permissionSaving||compact||status!=='live'||selected!==boundRef.current||!conversation||sending} onApplied={modelSettingsApplied} onError={setError} onSavingChange={setModelSaving}/></span>
-      <AccountUsage busy={busy}><button className={'send'+(busy||stopping?' stop-task':'')} aria-label={busy||stopping?t("停止任务"):t("发送提示词")} aria-busy={stopping||sending} title={stopping?t("正在停止任务…"):busy?t("停止当前任务（输入后 Enter 可追加指令）"):(modelSaving||permissionSaving||speedSaving||commandSaving||editSaving||forkSaving)?t("正在保存设置…"):t("发送到当前聊天")} disabled={status!=='live'||selected!==boundRef.current||(busy||stopping?stopping||!stopTurnId:(!draft.trim()&&!uploads.attachments.length&&!contextDraft.items.length)||modelSaving||permissionSaving||speedSaving||commandSaving||editSaving||forkSaving||uploads.preparing||sending)} onClick={busy||stopping?stopTask:send}>{stopping||sending?<RefreshCw size={14} className="spin"/>:busy?<Square size={10} fill="currentColor"/>:<ArrowUp size={16}/>}</button></AccountUsage>
+    <span className="model-summary"><SpeedPicker threadId={selected} model={conversation?.latestModel} tier={serviceTier} toggleRequest={speedToggleRequest} disabled={compact||status!=='live'||selected!==boundRef.current||!conversation||sending||modelSaving||commandSaving||editSaving||forkSaving} onApplied={threadSettingsApplied} onError={setError} onSavingChange={setSpeedSaving}/><ModelPicker openRequest={modelOpenRequest} threadId={selected} model={conversation?.latestModel} effort={conversation?.latestReasoningEffort} names={modelNames} busy={busy} disabled={speedSaving||editSaving||forkSaving||commandSaving||compact||status!=='live'||selected!==boundRef.current||!conversation||sending} onApplied={modelSettingsApplied} onError={setError} onSavingChange={setModelSaving}/></span>
+      <AccountUsage busy={busy}><button className={'send'+(busy||stopping?' stop-task':'')} aria-label={busy||stopping?t("停止任务"):t("发送提示词")} aria-busy={stopping||sending} title={stopping?t("正在停止任务…"):busy?t("停止当前任务（输入后 Enter 可追加指令）"):(modelSaving||speedSaving||commandSaving||editSaving||forkSaving)?t("正在保存设置…"):t("发送到当前聊天")} disabled={status!=='live'||selected!==boundRef.current||(busy||stopping?stopping||!stopTurnId:(!draft.trim()&&!uploads.attachments.length&&!contextDraft.items.length)||modelSaving||speedSaving||commandSaving||editSaving||forkSaving||uploads.preparing||sending)} onClick={busy||stopping?stopTask:send}>{stopping||sending?<RefreshCw size={14} className="spin"/>:busy?<Square size={10} fill="currentColor"/>:<ArrowUp size={16}/>}</button></AccountUsage>
      </div>
     </div>
    </div>

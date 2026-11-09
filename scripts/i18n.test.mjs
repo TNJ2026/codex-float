@@ -25,6 +25,7 @@ test('language switches update the interface without replacing drafts or convers
   if(cmd==='connect_thread'){events.get('codex-stream')?.({payload:{conversationId:state.id,change:{type:'snapshot',revision:1,conversationState:state}}});return {connected:true};}
   if(cmd==='read_usage')return {};
   if(cmd==='read_model_options')return {settings:{model:'test-model'},models:[{model:'test-model',additionalSpeedTiers:['fast']}]};
+  if(cmd==='update_speed_settings')return {threadSettings:{serviceTier:args.fast?'fast':'default'}};
   if(cmd==='list_chatgpt_threads')return {threads:[]};
   throw Error(`Unexpected command: ${cmd}`);
  }};
@@ -50,7 +51,7 @@ test('language switches update the interface without replacing drafts or convers
   assert.ok(document.querySelector('[aria-label="Appearance"]'));
   assert.ok(document.querySelector('[aria-label="Prompt"]'));
   assert.equal(document.querySelector('.section-label label').textContent,'Current chat');
-  assert.equal(document.querySelector('.permission-picker-button span').textContent,'Default permissions');
+  assert.equal(document.querySelector('.permission-status > span').textContent,'Ask for approval');
   assert.equal(document.querySelector('#prompt-input'),input,'language changes keep the composer mounted');
   assert.equal(input.value,'保留这份草稿');
   assert.equal(document.querySelector('[data-message-id="user"] .markdown').textContent.trimEnd(),message);
@@ -59,11 +60,13 @@ test('language switches update the interface without replacing drafts or convers
   assert.equal(i18n.readLanguage(localStorage),'en');
   assert.equal(calls.filter(call=>call.cmd==='set_ui_language').at(-1).args.language,'en');
   assert.equal(i18n.t('移除附件 {0}',['{1} 中文.txt']),'Remove attachment {1} 中文.txt');
-  await act(async()=>document.querySelector('[aria-label="Change permissions"]').click());
-  assert.deepEqual([...document.querySelectorAll('.permission-popup strong')].map(node=>node.textContent),['Read-only','Default permissions','Full access']);
+  assert.ok(document.querySelector('[aria-label="Current permissions"]'));
+  assert.equal(document.querySelector('.permission-status button'),null);
   await act(async()=>document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
   await act(async()=>document.querySelector('[aria-label="Change response speed"]').click());
-  assert.deepEqual([...document.querySelectorAll('.speed-popup strong')].map(node=>node.textContent),['Standard speed','Fast mode']);
+  assert.equal(document.querySelector('.speed-popup'),null);
+  assert.equal(document.querySelector('[aria-label="Change response speed"]').getAttribute('aria-pressed'),'true');
+  assert.match(document.querySelector('[aria-label="Change response speed"]').title,/Fast mode/);
   await act(async()=>{
    document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
    events.get('windows-caption-action')({payload:'settings'});
