@@ -57,6 +57,8 @@ pub fn run() {
             services::predictions::predict_message,
             services::predictions::cancel_prediction,
             services::subagent_actions::subagent_action,
+            #[cfg(target_os = "macos")]
+            platform::window::focus_composer,
             platform::background::background_settings,
             services::ui_language::set_ui_language,
             #[cfg(target_os = "windows")]

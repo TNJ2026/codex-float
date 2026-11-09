@@ -23,6 +23,53 @@ pub fn initialize(window: &WebviewWindow) -> Result<(), String> {
     super::drag::install(window)?;
     Ok(())
 }
+// WebKit may already be the native first responder before its cold-loaded page
+// knows it has keyboard focus. Selecting that same responder is then a no-op.
+// Only repair that split state; never cycle an already focused editing session.
+#[tauri::command]
+pub async fn focus_composer(
+    window: WebviewWindow,
+    restore_web_focus: bool,
+) -> Result<bool, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    window
+        .with_webview(move |platform| {
+            // SAFETY: with_webview runs on AppKit's main thread. Tauri owns this
+            // WKWebView, which inherits NSView and NSResponder.
+            let focused = unsafe {
+                platform
+                    .inner()
+                    .cast::<NSView>()
+                    .as_ref()
+                    .and_then(|view| {
+                        view.window().map(|native| {
+                            if !native.isKeyWindow() {
+                                return false;
+                            }
+                            let already_responder =
+                                native.firstResponder().is_some_and(|responder| {
+                                    std::ptr::eq(
+                                        &*responder as *const _ as *const (),
+                                        view as *const _ as *const (),
+                                    )
+                                });
+                            if restore_web_focus
+                                && already_responder
+                                && !native.makeFirstResponder(None)
+                            {
+                                return false;
+                            }
+                            native.makeFirstResponder(Some(view))
+                        })
+                    })
+                    .unwrap_or(false)
+            };
+            let _ = tx.send(focused);
+        })
+        .map_err(|error| error.to_string())?;
+    rx.await.map_err(|_| "窗口输入焦点同步已取消".into())
+}
+
 // Keep the existing NSWindow/WebView. Pinned overlays must survive app hiding
 // during fullscreen transitions and sit above browser video windows.
 pub fn is_pinned(window: &WebviewWindow) -> tauri::Result<bool> {

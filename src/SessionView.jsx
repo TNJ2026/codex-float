@@ -42,6 +42,10 @@ import {QuestionAnswer} from './QuestionAnswer';
 import {activeTurnId,turnIsRunning} from './stop-task';
 import {afterMessagePaint,hasMessageEcho,mergeOptimisticMessages,unconfirmedMessages,isSendTimeout,waitForMessageEcho} from './optimistic';
 
+function focusNativeComposer(){
+ if(window.__TAURI_INTERNALS__&&window.__CODEX_FLOAT_PLATFORM__==='macos')invoke('focus_composer',{restoreWebFocus:!document.hasFocus()}).catch(()=>{});
+}
+
 const Message = memo(function Message({id,type,role,phase,text='',images,files,cwd,pending,failed,active,steps,explanation,turnStatus,turnDurationMs,agents,errors,turnId,copyable,calls,toolCall,toolStatus,toolTitle,editable,onEdit,editDisabled,workMessages,appCard,attachments,references,forkable,onFork,forkDisabled}) {
  useLanguage();
  const answers=useMemo(()=>role==='user'?parseQuestionReply(text):[],[text,role]);
@@ -402,7 +406,7 @@ export function SessionView({ref,compact,compactRef,predictionsEnabled,windowErr
    <div className={'composer'+(uploads.dragging?' dragging':'')} onDragOver={uploads.onDragOver} onDragLeave={uploads.onDragLeave} onDrop={uploads.onDrop}>
     <ContextChips items={contextDraft.items} onRemove={contextDraft.remove} onToggleBrowser={contextDraft.toggleBrowser}/>
     <ComposerAttachments files={uploads.attachments} onRemove={uploads.remove} preparing={uploads.preparing} dragging={uploads.dragging}/>
-    <div className="composer-input-wrap"><textarea id="prompt-input" ref={draftBox} aria-label={t("提示词")} rows="2" value={draft} onChange={e=>{setDraft(e.target.value);updateMention(e.target);}} onSelect={e=>updateMention(e.target)} onPaste={uploads.onPaste} onKeyDown={e=>{uploads.onKeyDown(e);if(contextKeys(e)||predictionKeys(e))return;if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();send();}}} aria-describedby={prediction.text?'composer-prediction':undefined} aria-controls={activeSlash?'slash-suggestions':activeMention?'context-suggestions':undefined} aria-activedescendant={activeSlash&&commandRows.length?`slash-option-${commandIndex}`:activeMention&&contextRows.length?`context-option-${contextIndex}`:undefined} placeholder={prediction.text?'':busy?t("告诉 Codex 接下来怎么做…"):t("发送消息，/ 命令，$ 技能…")}/><ComposerPrediction text={prediction.text}/></div>
+    <div className="composer-input-wrap"><textarea id="prompt-input" ref={draftBox} onFocus={focusNativeComposer} onPointerDown={focusNativeComposer} autoFocus={!!window.__TAURI_INTERNALS__&&window.__CODEX_FLOAT_PLATFORM__==='macos'&&!compact} aria-label={t("提示词")} rows="2" value={draft} onChange={e=>{setDraft(e.target.value);updateMention(e.target);}} onSelect={e=>updateMention(e.target)} onPaste={uploads.onPaste} onKeyDown={e=>{uploads.onKeyDown(e);if(contextKeys(e)||predictionKeys(e))return;if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();send();}}} aria-describedby={prediction.text?'composer-prediction':undefined} aria-controls={activeSlash?'slash-suggestions':activeMention?'context-suggestions':undefined} aria-activedescendant={activeSlash&&commandRows.length?`slash-option-${commandIndex}`:activeMention&&contextRows.length?`context-option-${contextIndex}`:undefined} placeholder={prediction.text?'':busy?t("告诉 Codex 接下来怎么做…"):t("发送消息，/ 命令，$ 技能…")}/><ComposerPrediction text={prediction.text}/></div>
     <div className="composer-bottom">
      <div className="composer-leading"><AttachmentButton onClick={uploads.choose} disabled={uploads.preparing||sending}/><ContextButton open={contextOpen||!!activeMention} disabled={sending} onClick={()=>{setSnippetSelection(draft.slice(draftBox.current?.selectionStart||0,draftBox.current?.selectionEnd||0));setMention(null);closeSlash();setContextOpen(value=>!value);}}/><PermissionStatus conversation={conversation} connected={status==='live'&&selected===boundRef.current}/></div>
      <div className="footer-meta">

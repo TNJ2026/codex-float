@@ -12,6 +12,9 @@ test('standalone startup discovers a live chat before connecting and preserves d
  let failure=false,inherited=false,finishDiscovery,delayConnect=false,finishConnect;
  dom.window.HTMLElement.prototype.scrollIntoView=function(){};
  const calls=[],callbacks=new Map(),events=new Map();
+ let nativePageFocused=false;
+ document.hasFocus=()=>nativePageFocused;
+ window.__CODEX_FLOAT_PLATFORM__='macos';
  window.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener(){}};
  window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},transformCallback(callback){const id=callbacks.size+1;callbacks.set(id,callback);return id;},invoke:async(cmd,args)=>{
   calls.push({cmd,args});
@@ -29,15 +32,26 @@ test('standalone startup discovers a live chat before connecting and preserves d
  try{
   const {createRoot}=await import('react-dom/client');
   const {SessionView}=await vite.ssrLoadModule('/src/SessionView.jsx');
-  const mount=async()=>{
+  const mount=async(compact=false)=>{
    root=createRoot(document.getElementById('root'));
-   await act(async()=>{root.render(React.createElement(SessionView,{compact:false,compactRef:{current:false},onMiniStatusChange(){}}));await new Promise(resolve=>setTimeout(resolve,50));});
+   await act(async()=>{root.render(React.createElement(SessionView,{compact,compactRef:{current:compact},onMiniStatusChange(){}}));await new Promise(resolve=>setTimeout(resolve,50));});
   };
   localStorage.setItem('codex-float-thread',ids[1]);
   await mount();
+  assert.equal(document.activeElement,document.querySelector('#prompt-input'),'macOS startup focuses the composer before chat discovery finishes');
+  assert.ok(calls.some(call=>call.cmd==='focus_composer'),'DOM autofocus also requests native WebView input focus');
+  assert.equal(calls.find(call=>call.cmd==='focus_composer').args.restoreWebFocus,true,'cold DOM focus requests a native responder transition when the page itself is unfocused');
+  const focusCalls=calls.filter(call=>call.cmd==='focus_composer').length;
+  nativePageFocused=true;
+  await act(async()=>document.querySelector('#prompt-input').dispatchEvent(new dom.window.MouseEvent('pointerdown',{bubbles:true})));
+  assert.equal(calls.filter(call=>call.cmd==='focus_composer').length,focusCalls+1,'a first click retries the native handoff even if DOM focus is already set');
+  assert.equal(calls.filter(call=>call.cmd==='focus_composer').at(-1).args.restoreWebFocus,false,'an already focused page must not reset native input or interrupt composition');
+  const attachmentButton=document.querySelector('[aria-label="添加附件"]');
+  attachmentButton.focus();
   assert.deepEqual(calls.find(call=>call.cmd==='find_running_thread').args.threadIds,[ids[1],ids[0],ids[2]]);
   assert.equal(calls.some(call=>call.cmd==='connect_thread'),false,'do not connect arbitrary history before discovery completes');
   await act(async()=>finishDiscovery(ids[2]));
+  assert.equal(document.activeElement,attachmentButton,'background connection updates must not steal focus back to the composer');
   assert.equal(calls.find(call=>call.cmd==='connect_thread').args.threadId,ids[2]);
   assert.equal(localStorage.getItem('codex-float-thread'),ids[2]);
   assert.equal(document.querySelector('[role="alert"]'),null);
@@ -64,6 +78,17 @@ test('standalone startup discovers a live chat before connecting and preserves d
   assert.equal(document.querySelector('.thread-selection').textContent,'Chat 0');
   assert.deepEqual(calls.filter(call=>call.cmd==='connect_thread').map(call=>call.args.threadId),[ids[2],ids[0]]);
   assert.equal(localStorage.getItem('codex-float-thread'),ids[0]);
+  await act(async()=>root.unmount());
+  window.__CODEX_FLOAT_PLATFORM__='windows';
+  const macFocusCalls=calls.filter(call=>call.cmd==='focus_composer').length;
+  await mount();
+  assert.notEqual(document.activeElement,document.querySelector('#prompt-input'),'Windows retains its existing startup focus');
+  await act(async()=>document.querySelector('#prompt-input').focus());
+  assert.equal(calls.filter(call=>call.cmd==='focus_composer').length,macFocusCalls,'Windows never invokes the macOS native focus command');
+  await act(async()=>root.unmount());
+  window.__CODEX_FLOAT_PLATFORM__='macos';
+  await mount(true);
+  assert.notEqual(document.activeElement,document.querySelector('#prompt-input'),'a hidden compact composer must not receive startup focus');
  }finally{
   if(root)await act(async()=>root.unmount());
   await vite.close();dom.window.close();keys.forEach((key,index)=>{if(previous[index]===undefined)delete globalThis[key];else globalThis[key]=previous[index];});
