@@ -9,7 +9,8 @@ test('standalone startup discovers a live chat before connecting and preserves d
  const keys=['window','document','localStorage','requestAnimationFrame','IS_REACT_ACT_ENVIRONMENT'],previous=keys.map(key=>globalThis[key]);
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,localStorage:dom.window.localStorage,requestAnimationFrame:fn=>setTimeout(fn,0),IS_REACT_ACT_ENVIRONMENT:true});
  const ids=[1,2,3].map(n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`);
- let failure=false,inherited=false,finishDiscovery;
+ let failure=false,inherited=false,finishDiscovery,delayConnect=false,finishConnect;
+ dom.window.HTMLElement.prototype.scrollIntoView=function(){};
  const calls=[],callbacks=new Map(),events=new Map();
  window.__TAURI_EVENT_PLUGIN_INTERNALS__={unregisterListener(){}};
  window.__TAURI_INTERNALS__={metadata:{currentWindow:{label:'main'},currentWebview:{label:'main'}},transformCallback(callback){const id=callbacks.size+1;callbacks.set(id,callback);return id;},invoke:async(cmd,args)=>{
@@ -20,7 +21,7 @@ test('standalone startup discovers a live chat before connecting and preserves d
    if(failure)throw 'connection reset during discovery';
    return new Promise(resolve=>{finishDiscovery=resolve;});
   }
-  if(cmd==='connect_thread')return {connected:true};
+  if(cmd==='connect_thread')return delayConnect?new Promise(resolve=>{finishConnect=resolve;}):{connected:true};
   if(cmd==='read_usage')return {};
  }};
  const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false,ws:false,watch:null},appType:'custom'});
@@ -48,6 +49,21 @@ test('standalone startup discovers a live chat before connecting and preserves d
   await mount();
   assert.equal(calls.some(call=>call.cmd==='find_running_thread'),false,'an inherited current chat remains preferred');
   assert.equal(calls.find(call=>call.cmd==='connect_thread').args.threadId,ids[2]);
+  await act(async()=>root.unmount());calls.length=0;delayConnect=true;
+  await mount();
+  assert.equal(document.querySelector('[role="combobox"]').disabled,true);
+  await act(async()=>events.get('codex-stream')({payload:{conversationId:ids[2],change:{type:'snapshot',revision:1,conversationState:{turns:[]}}}}));
+  assert.equal(document.querySelector('[role="combobox"]').disabled,true,'snapshot must not unlock selection before the connection request settles');
+  await act(async()=>events.get('codex-disconnected')({payload:'owner disconnected'}));
+  assert.equal(document.querySelector('[role="combobox"]').disabled,true,'connection lock is independent of stream status');
+  await act(async()=>finishConnect({connected:true}));
+  assert.equal(document.querySelector('[role="combobox"]').disabled,false);
+  delayConnect=false;
+  await act(async()=>document.querySelector('[role="combobox"]').click());
+  await act(async()=>document.querySelector('[data-option-index="0"]').click());
+  assert.equal(document.querySelector('.thread-selection').textContent,'Chat 0');
+  assert.deepEqual(calls.filter(call=>call.cmd==='connect_thread').map(call=>call.args.threadId),[ids[2],ids[0]]);
+  assert.equal(localStorage.getItem('codex-float-thread'),ids[0]);
  }finally{
   if(root)await act(async()=>root.unmount());
   await vite.close();dom.window.close();keys.forEach((key,index)=>{if(previous[index]===undefined)delete globalThis[key];else globalThis[key]=previous[index];});

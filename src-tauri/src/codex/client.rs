@@ -7,6 +7,22 @@ use std::{
 use tauri::{Emitter, Manager};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+// Dropping a JoinHandle detaches it. Keep cancellation ownership until initialization succeeds,
+// and nest the writer guard inside the reader so cancellation closes both transport halves.
+struct TaskGuard(Option<tauri::async_runtime::JoinHandle<()>>);
+impl TaskGuard {
+    fn detach(mut self) {
+        self.0.take();
+    }
+}
+impl Drop for TaskGuard {
+    fn drop(&mut self) {
+        if let Some(task) = self.0.take() {
+            task.abort();
+        }
+    }
+}
+
 pub(crate) struct Client {
     writer: tokio::sync::mpsc::UnboundedSender<Value>,
     pending: Mutex<HashMap<String, mpsc::Sender<Value>>>,
@@ -28,7 +44,7 @@ impl Client {
             alive: std::sync::atomic::AtomicBool::new(true),
         });
         let c = client.clone();
-        tauri::async_runtime::spawn(async move {
+        let connection_task = TaskGuard(Some(tauri::async_runtime::spawn(async move {
             let pipe = match crate::platform::transport::connect().await {
                 Ok(pipe) => pipe,
                 Err(error) => {
@@ -37,7 +53,7 @@ impl Client {
                 }
             };
             let (mut reader, mut writer) = tokio::io::split(pipe);
-            let writer_task = tauri::async_runtime::spawn(async move {
+            let writer_task = TaskGuard(Some(tauri::async_runtime::spawn(async move {
                 while let Some(message) = outgoing_rx.recv().await {
                     let Ok(data) = serde_json::to_vec(&message) else {
                         break;
@@ -51,7 +67,7 @@ impl Client {
                         break;
                     }
                 }
-            });
+            })));
             let _ = ready_tx.send(Ok::<(), String>(()));
             loop {
                 let mut header = [0; 4];
@@ -109,11 +125,11 @@ impl Client {
                     _ => {}
                 }
             }
-            writer_task.abort();
+            drop(writer_task);
             c.alive.store(false, std::sync::atomic::Ordering::SeqCst);
             c.pending.lock().unwrap().clear();
             let _ = app.emit("codex-disconnected", "Codex 连接已断开，请重新连接");
-        });
+        })));
         ready_rx
             .recv_timeout(Duration::from_secs(5))
             .map_err(|_| "连接 Codex 超时".to_string())??;
@@ -122,6 +138,7 @@ impl Client {
             .as_str()
             .ok_or("初始化未返回客户端 ID")?
             .into();
+        connection_task.detach();
         Ok(client)
     }
     fn write(&self, message: Value) -> Result<(), String> {
@@ -241,6 +258,51 @@ pub(crate) fn shutdown(app: &tauri::AppHandle) {
 #[cfg(test)]
 mod history_tests {
     use super::*;
+
+    struct Released(mpsc::Sender<&'static str>, &'static str);
+    impl Drop for Released {
+        fn drop(&mut self) {
+            let _ = self.0.send(self.1);
+        }
+    }
+
+    #[test]
+    fn failed_initialization_cancels_reader_and_nested_writer() {
+        let (released_tx, released_rx) = mpsc::channel();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let reader = TaskGuard(Some(tauri::async_runtime::spawn(async move {
+            let _reader_resource = Released(released_tx.clone(), "reader");
+            let writer_resource = Released(released_tx, "writer");
+            let _writer = TaskGuard(Some(tauri::async_runtime::spawn(async move {
+                let _resource = writer_resource;
+                std::future::pending::<()>().await;
+            })));
+            ready_tx.send(()).unwrap();
+            std::future::pending::<()>().await;
+        })));
+        ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        // The same guard drop runs on every early return from Client::open.
+        drop(reader);
+        let mut released = vec![
+            released_rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+            released_rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+        ];
+        released.sort();
+        assert_eq!(released, ["reader", "writer"]);
+    }
+
+    #[test]
+    fn successful_initialization_keeps_connection_task_running() {
+        let (finish_tx, finish_rx) = tokio::sync::oneshot::channel::<()>();
+        let (done_tx, done_rx) = mpsc::channel();
+        let task = TaskGuard(Some(tauri::async_runtime::spawn(async move {
+            finish_rx.await.unwrap();
+            done_tx.send(()).unwrap();
+        })));
+        task.detach();
+        finish_tx.send(()).unwrap();
+        done_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    }
 
     #[test]
     fn confirmation_snapshots_preserve_only_the_selected_chat_subscription() {

@@ -40,7 +40,11 @@ test('picker, native drop, clipboard files and pasted images share a removable d
   await act(async()=>{api.onKeyDown({ctrlKey:true,key:'v'});api.onPaste({clipboardData:{files:[]}});});
   assert.equal(api.attachments.length,3);
   clipboard=[];
-  await act(async()=>{api.onPaste({clipboardData:{files:[new dom.window.File(['png'],'截图.png',{type:'image/png'})]},preventDefault(){}});await new Promise(resolve=>setTimeout(resolve,30));});
+  await act(async()=>{api.onPaste({clipboardData:{files:[new dom.window.File(['png'],'截图.png',{type:'image/png'})]},preventDefault(){}});});
+  const deadline=Date.now()+5000;
+  while(!api.attachments.some(file=>file.path==='C:/paste.png')&&Date.now()<deadline){
+   await act(async()=>{await new Promise(resolve=>setTimeout(resolve,10));});
+  }
   assert.equal(api.attachments.at(-1).image,true);
   assert.equal(calls.find(call=>call.cmd==='save_attachment').args.data,'cG5n');
   assert.ok(document.querySelector('.composer-attachment img'));

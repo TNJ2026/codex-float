@@ -13,7 +13,7 @@ test('show at most three file rows and open the complete list with working file 
  dom.window.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
  const calls=[];
  dom.window.__TAURI_INTERNALS__={invoke:async(cmd,args)=>{calls.push({cmd,args});return {kind:'text',text:'文件内容'};}};
- const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false},appType:'custom'});
+ const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false,ws:false,watch:null},appType:'custom'});
  let root;
  try{
   const {createRoot}=await import('react-dom/client');
