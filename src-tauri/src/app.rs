@@ -37,6 +37,7 @@ pub fn run() {
             services::attachments::pick_attachments,
             services::attachments::inspect_attachments,
             services::attachments::save_attachment,
+            services::attachments::open_attachment_cache,
             services::attachments::clipboard_attachment_paths,
             services::context::pick_context_paths,
             services::context::search_context_files,

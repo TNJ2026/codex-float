@@ -68,10 +68,10 @@ pub(super) fn connect_client(c: &super::client::Client, thread_id: &str) -> Resu
         .as_str()
         .ok_or("未找到聊天所有者")?
         .to_string();
-    c.unbind();
-    *c.binding.lock().unwrap() = Some((thread_id.to_string(), owner.clone()));
+    c.unbind()?;
+    *c.binding.lock().map_err(|_| "聊天连接不可用")? = Some((thread_id.to_string(), owner.clone()));
     if let Err(error) = c.load_history(thread_id, &owner, false) {
-        c.unbind();
+        c.unbind()?;
         return Err(error);
     }
     Ok(json!({"connected":true}))
@@ -91,7 +91,7 @@ pub async fn send_prompt(
     }
     tauri::async_runtime::spawn_blocking(move || {
         let c = get_client(&app)?;
-        let binding = c.binding.lock().unwrap().clone().ok_or("请先连接聊天")?;
+        let binding = c.bound()?.ok_or("请先连接聊天")?;
         if binding.0 != thread_id { return Err("聊天已切换，请重新连接".into()); }
         let context_items = context_items.unwrap_or_default();
         let (thread_references, additional_context) = crate::services::context::thread_reference_context(&context_items, &thread_id)?;
@@ -134,7 +134,7 @@ pub async fn reply_interaction(
     }
     tauri::async_runtime::spawn_blocking(move || {
         let c = get_client(&app)?;
-        let binding = c.binding.lock().unwrap().clone().ok_or("请先连接聊天")?;
+        let binding = c.bound()?.ok_or("请先连接聊天")?;
         if binding.0 != thread_id {
             return Err("聊天已切换，请重新连接".into());
         }

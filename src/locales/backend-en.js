@@ -3,8 +3,8 @@ export default {
   窗口输入焦点同步已取消: 'Window input focus synchronization was canceled',
   附件缓存目录不能是链接: 'The attachment cache directory must not be a link',
   附件缓存不可用: 'The attachment cache is unavailable',
-  '附件缓存已达 512 MiB 上限，请清理旧缓存后重试':
-    'The attachment cache reached its 512 MiB limit. Clear old cached files and retry.',
+  '附件缓存已达 512 MiB 上限，请在设置中打开缓存文件夹并清理后重试':
+    'The attachment cache reached its 512 MiB limit. Open the cache folder in Settings, remove unneeded files, and retry.',
   '此文件类型可能执行程序，请在文件管理器中检查后手动打开':
     'This file type may run a program. Inspect it in the file manager and open it manually.',
   窗口按钮必须在主线程更新: 'Window buttons must be updated on the main thread',

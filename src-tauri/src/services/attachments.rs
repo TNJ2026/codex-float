@@ -7,6 +7,26 @@ pub(crate) fn initialize(app: tauri::AppHandle) {
     super::attachment_cache::initialize(app);
 }
 
+#[tauri::command]
+pub async fn open_attachment_cache(app: tauri::AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = app
+            .path()
+            .app_data_dir()
+            .map_err(|error| error.to_string())?
+            .join("attachments");
+        fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+        let metadata = root.symlink_metadata().map_err(|error| error.to_string())?;
+        if !metadata.is_dir() || crate::platform::files::is_link(&metadata) {
+            return Err("附件缓存目录不能是链接".into());
+        }
+        // This directory is derived from app storage, never from model output.
+        crate::platform::shell::open_file(&root)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 pub const MAX_ATTACHMENT_BYTES: u64 = 25 * 1024 * 1024;
 pub const MAX_ATTACHMENTS: usize = 20;
 

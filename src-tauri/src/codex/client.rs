@@ -90,7 +90,10 @@ impl Client {
                 match msg["type"].as_str() {
                     Some("response") => {
                         if let Some(id) = msg["requestId"].as_str() {
-                            if let Some(tx) = c.pending.lock().unwrap().remove(id) {
+                            let Ok(mut pending) = c.pending.lock() else {
+                                break;
+                            };
+                            if let Some(tx) = pending.remove(id) {
                                 let _ = tx.send(msg);
                             }
                         }
@@ -101,13 +104,19 @@ impl Client {
                     Some("broadcast") if msg["method"] == "thread-stream-state-changed" => {
                         if msg["params"]["change"]["type"] == "snapshot" {
                             if let Some(id) = msg["params"]["conversationId"].as_str() {
-                                if let Some(tx) = c.snapshots.lock().unwrap().get(id) {
+                                let Ok(snapshots) = c.snapshots.lock() else {
+                                    break;
+                                };
+                                if let Some(tx) = snapshots.get(id) {
                                     let _ = tx
                                         .send(msg["params"]["change"]["conversationState"].clone());
                                 }
                             }
                         }
-                        let selected = c.binding.lock().unwrap().as_ref().map(|b| b.0.clone());
+                        let Ok(binding) = c.bound() else {
+                            break;
+                        };
+                        let selected = binding.map(|b| b.0);
                         if selected.as_deref() == msg["params"]["conversationId"].as_str() {
                             let _ = app.emit("codex-stream", &msg["params"]);
                         }
@@ -116,7 +125,10 @@ impl Client {
                         if msg["method"] == "client-status-changed"
                             && msg["params"]["status"] == "disconnected" =>
                     {
-                        let owner = c.binding.lock().unwrap().as_ref().map(|b| b.1.clone());
+                        let Ok(binding) = c.bound() else {
+                            break;
+                        };
+                        let owner = binding.map(|b| b.1);
                         if owner.as_deref() == msg["params"]["clientId"].as_str() {
                             let _ = app.emit(
                                 "codex-disconnected",
@@ -129,14 +141,18 @@ impl Client {
             }
             drop(writer_task);
             c.alive.store(false, std::sync::atomic::Ordering::SeqCst);
-            c.pending.lock().unwrap().clear();
+            // Pending senders can always be dropped during teardown, even if poisoned.
+            c.pending
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .clear();
             let _ = app.emit("codex-disconnected", "Codex 连接已断开，请重新连接");
         })));
         ready_rx
             .recv_timeout(Duration::from_secs(5))
             .map_err(|_| "连接 Codex 超时".to_string())??;
         let response = client.rpc("initialize", json!({"clientType":"codex-float"}), 0, None)?;
-        *client.id.lock().unwrap() = response["result"]["clientId"]
+        *client.id.lock().map_err(|_| "聊天连接不可用")? = response["result"]["clientId"]
             .as_str()
             .ok_or("初始化未返回客户端 ID")?
             .into();
@@ -156,15 +172,25 @@ impl Client {
         target: Option<&str>,
     ) -> Result<Value, String> {
         let request_id = uuid::Uuid::new_v4().to_string();
+        let source = self.id.lock().map_err(|_| "聊天连接不可用")?.clone();
         let (tx, rx) = mpsc::channel();
-        self.pending.lock().unwrap().insert(request_id.clone(), tx);
-        let send = self.write(json!({"type":"request","requestId":request_id,"sourceClientId":*self.id.lock().unwrap(),"method":method,"params":params,"version":version,"targetClientId":target,"timeoutMs":15000}));
+        self.pending
+            .lock()
+            .map_err(|_| "聊天连接不可用")?
+            .insert(request_id.clone(), tx);
+        let send = self.write(json!({"type":"request","requestId":request_id,"sourceClientId":source,"method":method,"params":params,"version":version,"targetClientId":target,"timeoutMs":15000}));
         if let Err(e) = send {
-            self.pending.lock().unwrap().remove(&request_id);
+            self.pending
+                .lock()
+                .map_err(|_| "聊天连接不可用")?
+                .remove(&request_id);
             return Err(e);
         }
         let received = rx.recv_timeout(Duration::from_secs(16));
-        self.pending.lock().unwrap().remove(&request_id);
+        self.pending
+            .lock()
+            .map_err(|_| "聊天连接不可用")?
+            .remove(&request_id);
         let response =
             received.map_err(|_| "Codex 请求超时或连接已关闭，请重新连接".to_string())?;
         if response["resultType"] != "success" {
@@ -176,13 +202,18 @@ impl Client {
         Ok(response)
     }
     pub(crate) fn follow(&self, thread: &str, owner: &str, following: bool) -> Result<(), String> {
-        self.write(json!({"type":"broadcast","sourceClientId":*self.id.lock().unwrap(),"version":1,"method":"thread-stream-following-changed","params":{"conversationId":thread,"hostId":"local","following":following},"targetClientIds":[owner]}))
+        let source = self.id.lock().map_err(|_| "聊天连接不可用")?.clone();
+        self.write(json!({"type":"broadcast","sourceClientId":source,"version":1,"method":"thread-stream-following-changed","params":{"conversationId":thread,"hostId":"local","following":following},"targetClientIds":[owner]}))
     }
-    pub(crate) fn unbind(&self) {
-        let binding = self.binding.lock().unwrap().take();
+    pub(crate) fn bound(&self) -> Result<Option<(String, String)>, String> {
+        Ok(self.binding.lock().map_err(|_| "聊天连接不可用")?.clone())
+    }
+    pub(crate) fn unbind(&self) -> Result<(), String> {
+        let binding = self.binding.lock().map_err(|_| "聊天连接不可用")?.take();
         if let Some((thread, owner)) = binding {
             let _ = self.follow(&thread, &owner, false);
         }
+        Ok(())
     }
     pub(crate) fn load_history(
         &self,
@@ -223,16 +254,21 @@ impl Client {
                 .map_err(|_| cursor_error.unwrap_or_else(|| "尚未收到聊天状态，请刷新重试".into()))
         })();
         // A confirmation snapshot for the selected chat must retain its live subscription.
-        let is_bound = self
-            .binding
-            .lock()
-            .unwrap()
-            .as_ref()
-            .is_some_and(|binding| binding.0 == thread && binding.1 == owner);
-        if require_snapshot && !is_bound {
+        let binding = self.bound();
+        let is_bound = binding.as_ref().is_ok_and(|binding| {
+            binding
+                .as_ref()
+                .is_some_and(|binding| binding.0 == thread && binding.1 == owner)
+        });
+        if (require_snapshot && !is_bound) || binding.is_err() {
             let _ = self.follow(thread, owner, false);
         }
-        self.snapshots.lock().unwrap().remove(thread);
+        // Always release the snapshot slot before reporting a binding error.
+        self.snapshots
+            .lock()
+            .map_err(|_| "聊天连接不可用")?
+            .remove(thread);
+        let _ = binding?;
         result
     }
 
@@ -254,7 +290,7 @@ pub(crate) struct Bridge {
 }
 impl Bridge {
     fn current(&self) -> Result<Option<Arc<Client>>, String> {
-        let slot = self.slot.lock().unwrap();
+        let slot = self.slot.lock().map_err(|_| "聊天连接不可用")?;
         if slot.closed {
             return Err("Codex 连接已关闭".into());
         }
@@ -273,12 +309,12 @@ impl Bridge {
             return Ok(client);
         }
         // Serialize initializers without holding the slot needed by shutdown.
-        let _opening = self.opening.lock().unwrap();
+        let _opening = self.opening.lock().map_err(|_| "聊天连接不可用")?;
         if let Some(client) = self.current()? {
             return Ok(client);
         }
         let (client, task) = open()?;
-        let mut slot = self.slot.lock().unwrap();
+        let mut slot = self.slot.lock().map_err(|_| "聊天连接不可用")?;
         if slot.closed {
             return Err("Codex 连接已关闭".into());
         }
@@ -289,12 +325,12 @@ impl Bridge {
 
     fn shutdown(&self) {
         let client = {
-            let mut slot = self.slot.lock().unwrap();
+            let mut slot = self.slot.lock().unwrap_or_else(|error| error.into_inner());
             slot.closed = true;
             slot.client.take()
         };
         if let Some(client) = client {
-            client.unbind();
+            let _ = client.unbind();
         }
     }
 }
@@ -311,6 +347,121 @@ pub(crate) fn shutdown(app: &tauri::AppHandle) {
 #[cfg(test)]
 mod history_tests {
     use super::*;
+
+    fn poison<T: Send>(mutex: &Mutex<T>) {
+        std::thread::scope(|scope| {
+            assert!(scope
+                .spawn(|| {
+                    let _guard = mutex.lock().unwrap();
+                    panic!("simulate a panic while holding a client lock");
+                })
+                .join()
+                .is_err());
+        });
+    }
+
+    #[test]
+    fn poisoned_connection_and_binding_locks_return_errors_without_poisoning_other_locks() {
+        let (client, mut outgoing) = test_client();
+        poison(&client.connecting);
+        assert_eq!(
+            super::super::commands::connect_client(&client, "thread"),
+            Err("聊天连接不可用".into())
+        );
+        assert!(outgoing.try_recv().is_err());
+
+        let (client, mut outgoing) = test_client();
+        std::thread::scope(|scope| {
+            let worker = scope.spawn(|| super::super::commands::connect_client(&client, "thread"));
+            let discovery = outgoing.blocking_recv().unwrap();
+            poison(&client.binding);
+            reply(
+                &client,
+                &discovery,
+                json!({"resultType":"success","handledByClientId":"owner"}),
+            );
+            assert_eq!(worker.join().unwrap(), Err("聊天连接不可用".into()));
+        });
+        assert!(!client.connecting.is_poisoned());
+        assert_eq!(client.unbind(), Err("聊天连接不可用".into()));
+        assert!(outgoing.try_recv().is_err());
+    }
+
+    #[test]
+    fn poisoned_rpc_and_snapshot_locks_return_errors_without_sending_requests() {
+        for lock in ["id", "pending", "snapshots"] {
+            let (client, mut outgoing) = test_client();
+            let result = match lock {
+                "id" => {
+                    poison(&client.id);
+                    client.rpc("test", json!({}), 0, None).map(|_| ())
+                }
+                "pending" => {
+                    poison(&client.pending);
+                    client.rpc("test", json!({}), 0, None).map(|_| ())
+                }
+                _ => {
+                    poison(&client.snapshots);
+                    client.load_history("thread", "owner", false).map(|_| ())
+                }
+            };
+            assert_eq!(result, Err("聊天连接不可用".into()));
+            assert!(outgoing.try_recv().is_err());
+            assert!(client
+                .pending
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .is_empty());
+        }
+    }
+
+    #[test]
+    fn poisoned_binding_during_history_loading_still_releases_the_snapshot_and_subscription() {
+        for require_snapshot in [false, true] {
+            let (client, mut outgoing) = test_client();
+            std::thread::scope(|scope| {
+                let worker =
+                    scope.spawn(|| client.load_history("thread", "owner", require_snapshot));
+                assert_eq!(
+                    outgoing.blocking_recv().unwrap()["params"]["following"],
+                    true
+                );
+                let history = outgoing.blocking_recv().unwrap();
+                client.snapshots.lock().unwrap()["thread"]
+                    .send(json!({"turns":[]}))
+                    .unwrap();
+                poison(&client.binding);
+                reply(&client, &history, json!({"resultType":"success"}));
+                assert_eq!(worker.join().unwrap(), Err("聊天连接不可用".into()));
+            });
+            assert!(client.snapshots.lock().unwrap().is_empty());
+            assert_eq!(outgoing.try_recv().unwrap()["params"]["following"], false);
+        }
+    }
+
+    #[test]
+    fn shutdown_remains_best_effort_when_binding_or_bridge_state_is_poisoned() {
+        let bridge = Bridge::default();
+        let (client, _outgoing) = test_client();
+        bridge
+            .get_or_open(|| Ok((client.clone(), TaskGuard(None))))
+            .unwrap();
+        poison(&client.binding);
+        bridge.shutdown();
+        assert!(bridge.slot.lock().unwrap().client.is_none());
+
+        let bridge = Bridge::default();
+        poison(&bridge.slot);
+        assert!(bridge.current().is_err());
+        bridge.shutdown();
+        assert!(
+            bridge
+                .slot
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .closed
+        );
+    }
 
     fn test_client() -> (Arc<Client>, tokio::sync::mpsc::UnboundedReceiver<Value>) {
         let (writer, outgoing) = tokio::sync::mpsc::unbounded_channel();

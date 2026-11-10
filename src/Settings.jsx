@@ -31,6 +31,20 @@ export const Settings = memo(function Settings({
   const [adjustableBlur, setAdjustableBlur] = useState(false),
     [blurError, setBlurError] = useState(false);
   const blurQueue = useRef(Promise.resolve());
+  const [cacheOpening, setCacheOpening] = useState(false),
+    [cacheError, setCacheError] = useState('');
+  async function openAttachmentCache() {
+    if (cacheOpening) return;
+    setCacheOpening(true);
+    setCacheError('');
+    try {
+      await invoke('open_attachment_cache');
+    } catch (error) {
+      setCacheError(String(error.message || error));
+    } finally {
+      setCacheOpening(false);
+    }
+  }
   const root = useRef(null),
     button = useRef(null),
     themeButtons = useRef(null),
@@ -334,6 +348,23 @@ export const Settings = memo(function Settings({
           <p className="settings-note">
             {t('独立预测使用当前模型，额外消耗模型额度。建议仅填入草稿，不自动发送。')}
           </p>
+          {window.__TAURI_INTERNALS__ && (
+            <div className="settings-cache">
+              <button type="button" onClick={openAttachmentCache} disabled={cacheOpening}>
+                {t('打开附件缓存文件夹')}
+              </button>
+              <p className="settings-note">
+                {t(
+                  '缓存上限为 512 MiB。删除不再需要的文件后即可继续粘贴，无需重启；历史消息中的对应图片将无法预览。',
+                )}
+              </p>
+              {cacheError && (
+                <p className="settings-error" role="alert">
+                  {t(cacheError)}
+                </p>
+              )}
+            </div>
+          )}
         </Panel>
       )}
     </div>

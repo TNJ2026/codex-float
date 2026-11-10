@@ -412,6 +412,21 @@ button {
 .settings-error {
   color: var(--error);
 }
+.settings-cache {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--stroke);
+}
+.settings-cache > button {
+  padding: 7px 10px;
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  background: var(--control);
+  font-size: 12px;
+}
+.settings-cache > button:hover:not(:disabled) {
+  background: var(--control-hover);
+}
 .connection {
   padding: 8px 16px 12px;
   border-bottom: 1px solid var(--stroke);

@@ -11,13 +11,14 @@ test('settings popup changes and saves appearance, keeps native glass and closes
  dom.window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
  dom.window.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
  const calls=[];
- let mode='custom-blur',dragCount=0;
+ let mode='custom-blur',dragCount=0,cacheFailure=false;
  dom.window.__TAURI_INTERNALS__={transformCallback:()=>1,metadata:{currentWindow:{label:'main'}},invoke:async(cmd,args)=>{
   calls.push({cmd,args});
   if(cmd==='background_settings')return {mode,amount:10,adjustableBlur:mode==='custom-blur'};
   if(cmd==='set_background_blur')return args.amount;
   if(cmd==='acrylic_opacity')return args.opacity??{tintOpacity:.2,luminosityOpacity:.8};
   if(cmd==='settings_backdrop')return true;
+  if(cmd==='open_attachment_cache'&&cacheFailure)throw 'cache folder unavailable';
 
  }};
  const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false},appType:'custom'});
@@ -37,6 +38,15 @@ test('settings popup changes and saves appearance, keeps native glass and closes
    element.dispatchEvent(new dom.window.Event(element.tagName==='SELECT'?'change':'input',{bubbles:true}));
   });
   await click(gear());
+  const cacheButton=()=>[...document.querySelectorAll('.settings-cache button')].find(button=>button.textContent==='打开附件缓存文件夹');
+  assert.ok(cacheButton());
+  assert.equal(calls.some(call=>call.cmd==='open_attachment_cache'),false,'the folder only opens on request');
+  cacheFailure=true;await click(cacheButton());
+  assert.match(document.querySelector('.settings-cache [role="alert"]').textContent,/cache folder unavailable/);
+  cacheFailure=false;await click(cacheButton());
+  assert.equal(document.querySelector('.settings-cache [role="alert"]'),null);
+  assert.equal(calls.filter(call=>call.cmd==='open_attachment_cache').length,2);
+  assert.match(document.querySelector('.settings-cache').textContent,/无需重启/);
   assert.equal(document.querySelector('.settings-predictions input').checked,false);
   assert.equal(gear().getAttribute('aria-expanded'),'true');
   const themeButton=theme=>document.querySelector(`.theme-option[aria-label="${theme==='light'?'亮色':'暗色'}主题"]`);

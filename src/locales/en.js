@@ -1,6 +1,9 @@
 import backendErrors from './backend-en.js';
 
 export default {
+  打开附件缓存文件夹: 'Open attachment cache folder',
+  '缓存上限为 512 MiB。删除不再需要的文件后即可继续粘贴，无需重启；历史消息中的对应图片将无法预览。':
+    'The cache limit is 512 MiB. Remove unneeded files to paste again without restarting. Those images will no longer preview in past messages.',
   ...backendErrors,
   同步聊天: 'Sync chat',
   当前权限: 'Current permissions',
