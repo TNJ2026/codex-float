@@ -119,6 +119,8 @@ Windows 使用系统 WebView2 承载界面，macOS 使用 WKWebView。React 页�
 
 索引中有某条聊天记录，只代表它存在于本地历史中，不代表桌面端当前持有它的运行实例。
 
+用户手动选择聊天或点击同步时，`connect_thread` 先发现所有者；只有返回 `no-client-found` 才通过 `codex://threads/<id>` 在主 App 打开该已有聊天，并在最多约 8 秒的等待预算内重试所有者发现。随后加载历史并订阅实时流，不发送提示词。会话链接可能使主窗口切换到前台。后台启动发现和自动重连不主动打开窗口；管道错误、超时等其他错误也不触发打开。
+
 启动时，如果存在父 Codex 进程提供的 `CODEX_THREAD_ID`，界面优先连接该聊天。独立启动没有此变量时，前端调用 `find_running_thread`，依次检查上次选择及当前索引候选，通过 `thread-owner-discovery` 寻找可用的所有者。候选范围来自当前返回的聊天列表，并非枚举桌面端全部历史。
 
 [discovery.rs](../src-tauri/src/codex/discovery.rs) 会跳过无效 ID、重复项及返回 `no-client-found` 的聊天；连接中断和其他协议错误会保留，避免把所有错误都解释为“聊天未打开”。

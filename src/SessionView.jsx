@@ -877,7 +877,7 @@ export function SessionView({
                   selectedRef.current = id;
                   setSelected(id);
                   setFollow(true);
-                  connect(id);
+                  connect(id, { openIfNeeded: true });
                 }}
               />
               <button
@@ -940,7 +940,7 @@ export function SessionView({
                 </div>
                 <h2>{status === 'connecting' ? t('正在同步对话') : t('让对话留在手边')}</h2>
                 <p>
-                  {t('在 Codex 主窗口打开聊天，')}
+                  {t('选择已有聊天并点击同步，')}
                   <br />
                   {t('连接后即可在这里继续对话。')}
                 </p>

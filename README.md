@@ -50,8 +50,8 @@ Windows has been tested locally. macOS has been verified on Apple Silicon throug
 
 ## Usage
 
-1. Keep the Codex desktop app running and open the chat you want to use there.
-2. Launch CodexFloat and select that chat. Use the sync button to reconnect if needed.
+1. Keep the Codex desktop app running.
+2. Launch CodexFloat and select an existing chat. If it is not loaded, CodexFloat opens it in Codex and retries synchronization. Use the sync button to reconnect if needed.
 3. Press **Enter** to send or **Shift+Enter** for a new line. Sending during a task adds instructions to that task.
 
 Use the title bar to move or pin the window. macOS uses native traffic-light window controls: yellow minimizes to the Dock, and the circle button at the top right switches to the floating status ball. On Windows, the minimize button switches to the status ball.
@@ -86,7 +86,7 @@ For development, use `npm run dev:windows` or `npm run dev:macos`. Run frontend 
 
 ## Limitations
 
-- Uses the desktop app's internal local IPC protocol, which may change with app updates. Only existing local chats with a running instance can connect.
+- Uses the desktop app's internal local IPC protocol, which may change with app updates. Existing local chats connect through the desktop app; selecting an unloaded chat opens it there first and may bring its window forward.
 - Add attachments using the paperclip inside the composer, drag files in, or paste images and copied files. Each attachment can be up to 25 MB, with up to 20 per message. Clipboard content is saved in the app data directory; attachments are passed to the local chat as file paths.
 - Handle sign-in or unsupported dialogs in the main Codex app. Prompts inherit the selected chat's settings.
 - Browser context reads each window’s current page and accessible selected text on Windows (Chrome, Edge, Brave and Firefox), with a manual URL/selection entry available. IDE context requires a connected Codex IDE extension. Folders are sent as references, and only enabled skills and plugins are listed. Other conversations can be searched by title, project or ID and sent as live references for Codex to read, without switching the current conversation.

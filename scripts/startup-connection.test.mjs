@@ -53,6 +53,7 @@ test('standalone startup discovers a live chat before connecting and preserves d
   await act(async()=>finishDiscovery(ids[2]));
   assert.equal(document.activeElement,attachmentButton,'background connection updates must not steal focus back to the composer');
   assert.equal(calls.find(call=>call.cmd==='connect_thread').args.threadId,ids[2]);
+  assert.equal(calls.find(call=>call.cmd==='connect_thread').args.openIfNeeded,false,'background startup does not launch chat windows');
   assert.equal(localStorage.getItem('codex-float-thread'),ids[2]);
   assert.equal(document.querySelector('[role="alert"]'),null);
   await act(async()=>root.unmount());calls.length=0;failure=true;
@@ -78,6 +79,9 @@ test('standalone startup discovers a live chat before connecting and preserves d
   assert.equal(document.querySelector('.thread-selection').textContent,'Chat 0');
   assert.deepEqual(calls.filter(call=>call.cmd==='connect_thread').map(call=>call.args.threadId),[ids[2],ids[0]]);
   assert.equal(localStorage.getItem('codex-float-thread'),ids[0]);
+  assert.equal(calls.filter(call=>call.cmd==='connect_thread').at(-1).args.openIfNeeded,true,'explicit selection can open an unloaded chat');
+  await act(async()=>document.querySelector('.sync-button').click());
+  assert.equal(calls.filter(call=>call.cmd==='connect_thread').at(-1).args.openIfNeeded,true,'explicit sync can also open an unloaded chat');
   await act(async()=>root.unmount());
   window.__CODEX_FLOAT_PLATFORM__='windows';
   const macFocusCalls=calls.filter(call=>call.cmd==='focus_composer').length;

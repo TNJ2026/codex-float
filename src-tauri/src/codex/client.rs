@@ -132,7 +132,7 @@ impl Client {
                         if owner.as_deref() == msg["params"]["clientId"].as_str() {
                             let _ = app.emit(
                                 "codex-disconnected",
-                                "聊天运行实例已关闭，请在主窗口打开聊天后重新连接",
+                                "聊天连接已关闭，请点击同步重新打开并连接",
                             );
                         }
                     }
@@ -365,14 +365,15 @@ mod history_tests {
         let (client, mut outgoing) = test_client();
         poison(&client.connecting);
         assert_eq!(
-            super::super::commands::connect_client(&client, "thread"),
+            super::super::commands::connect_client(&client, "thread", false),
             Err("聊天连接不可用".into())
         );
         assert!(outgoing.try_recv().is_err());
 
         let (client, mut outgoing) = test_client();
         std::thread::scope(|scope| {
-            let worker = scope.spawn(|| super::super::commands::connect_client(&client, "thread"));
+            let worker =
+                scope.spawn(|| super::super::commands::connect_client(&client, "thread", false));
             let discovery = outgoing.blocking_recv().unwrap();
             poison(&client.binding);
             reply(
@@ -580,8 +581,8 @@ mod history_tests {
                 });
                 let next = || messages_rx.recv_timeout(Duration::from_secs(5)).unwrap();
                 std::thread::scope(|scope| {
-                    let first =
-                        scope.spawn(|| super::super::commands::connect_client(&client, "first"));
+                    let first = scope
+                        .spawn(|| super::super::commands::connect_client(&client, "first", false));
                     let discovery = next();
                     assert_eq!(discovery["method"], "thread-owner-discovery");
                     reply(
@@ -597,7 +598,7 @@ mod history_tests {
                     let client_ref = &client;
                     let second = scope.spawn(move || {
                         started_tx.send(()).unwrap();
-                        super::super::commands::connect_client(client_ref, second_thread)
+                        super::super::commands::connect_client(client_ref, second_thread, false)
                     });
                     started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
                     assert!(messages_rx

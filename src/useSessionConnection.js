@@ -36,9 +36,9 @@ export function useSessionConnection({ resetOptimistic }) {
   }
   async function syncCurrentThread() {
     await refresh();
-    await connect();
+    await connect(selectedRef.current, { openIfNeeded: true });
   }
-  async function connect(id = selectedRef.current) {
+  async function connect(id = selectedRef.current, { openIfNeeded = false } = {}) {
     if (!id || connecting.current) return;
     if (id !== boundRef.current) resetOptimistic([]);
     connecting.current = true;
@@ -49,8 +49,9 @@ export function useSessionConnection({ resetOptimistic }) {
     live.current = { state: null, revision: null };
     setConversation(null);
     try {
-      await invoke('connect_thread', { threadId: id });
+      await invoke('connect_thread', { threadId: id, openIfNeeded });
       setStatus('live');
+      setError('');
       localStorage.setItem('codex-float-thread', id);
       return true;
     } catch (e) {

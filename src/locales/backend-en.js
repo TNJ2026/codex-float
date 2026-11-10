@@ -1,5 +1,11 @@
 // Application-owned backend errors. Keep diagnostic values (paths, IDs and OS errors) intact.
 export default {
+  '该聊天尚未加载，点击同步即可打开并连接':
+    'This chat is not loaded. Click Sync to open and connect it.',
+  '聊天连接已关闭，请点击同步重新打开并连接':
+    'The chat connection closed. Click Sync to reopen and connect it.',
+  '已请求在 Codex 主窗口打开聊天，但尚未就绪，请稍后重试同步':
+    'The chat was opened in Codex but is not ready yet. Try syncing again shortly.',
   窗口输入焦点同步已取消: 'Window input focus synchronization was canceled',
   附件缓存目录不能是链接: 'The attachment cache directory must not be a link',
   附件缓存不可用: 'The attachment cache is unavailable',
