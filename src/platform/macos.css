@@ -1,42 +1,136 @@
-.macos-window { height: 100vh; display: flex; flex-direction: column; overflow: hidden; position: relative; border: 1px solid var(--window-border); border-radius: var(--window-radius, 8px); background: var(--window-bg); }
-.macos-window > .chat-panel { display:flex; flex-direction:column; height:100%; min-height:0; }
-.macos-window > .chat-panel[hidden] { display:none; }
-.macos-window.compact { border:0; border-radius:0; background:transparent; overflow:visible; }
-@media (forced-colors: active) {
-  .macos-window { background: Canvas; color: CanvasText; }
+.macos-window {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid var(--window-border);
+  border-radius: var(--window-radius, 8px);
+  background: var(--window-bg);
 }
-:root:is([data-native-background="liquid-glass"],[data-native-background="vibrancy"]) .macos-window:not(.compact) { --window-radius: 20px; }
-:root[data-window-platform="macos"] .chat-panel { padding-top: var(--native-titlebar-height,52px); }
-.macos-window dialog.settings-panel { margin: 0 0 0 auto; max-width: none; max-height: calc(100vh - var(--native-titlebar-height, 52px) - 20px); overflow: auto; }
-.macos-window dialog.settings-panel::backdrop { background: transparent; }
-:root[data-window-platform="macos"] .settings-panel { top: calc(var(--native-titlebar-height,52px) - 8px); }
-:root[data-window-platform="macos"] .settings-heading > strong:focus { outline: none; }
-.macos-window .settings-control[data-native-toolbar="true"] { position: static; height: 0; min-height: 0; flex: none; }
-.macos-window .settings-button[hidden] { display: none; }
-:root[data-window-platform="macos"] .thread-selector,
-:root[data-window-platform="macos"] .sync-button { border-radius: 9px; }
-:root[data-window-platform="macos"] .thread-popup { top: calc(100% + 6px); padding: 6px; border-radius: 12px; }
-:root[data-window-platform="macos"] .thread-popup[data-native-glass="true"] { border-radius: 16px; border-color: transparent; box-shadow: none; background: var(--window-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
-:root[data-window-platform="macos"] .thread-option { border-radius: 6px; }
-:root[data-window-platform="macos"] { --dialog-top: calc(var(--native-titlebar-height, 52px) + 8px); }
-:root[data-window-platform="macos"] .composer { border-radius: var(--window-radius, 8px); }
-:root[data-window-platform="macos"] .model-settings-popup { --model-popup-bg: var(--window-bg); }
+.macos-window > .chat-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.macos-window > .chat-panel[hidden] {
+  display: none;
+}
+.macos-window.compact {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+@media (forced-colors: active) {
+  .macos-window {
+    background: Canvas;
+    color: CanvasText;
+  }
+}
+:root:is([data-native-background='liquid-glass'], [data-native-background='vibrancy'])
+  .macos-window:not(.compact) {
+  --window-radius: 20px;
+}
+:root[data-window-platform='macos'] .chat-panel {
+  padding-top: var(--native-titlebar-height, 52px);
+}
+.macos-window dialog.settings-panel {
+  margin: 0 0 0 auto;
+  max-width: none;
+  max-height: calc(100vh - var(--native-titlebar-height, 52px) - 20px);
+  overflow: auto;
+}
+.macos-window dialog.settings-panel::backdrop {
+  background: transparent;
+}
+:root[data-window-platform='macos'] .settings-panel {
+  top: calc(var(--native-titlebar-height, 52px) - 8px);
+}
+:root[data-window-platform='macos'] .settings-heading > strong:focus {
+  outline: none;
+}
+.macos-window .settings-control[data-native-toolbar='true'] {
+  position: static;
+  height: 0;
+  min-height: 0;
+  flex: none;
+}
+.macos-window .settings-button[hidden] {
+  display: none;
+}
+:root[data-window-platform='macos'] .thread-selector,
+:root[data-window-platform='macos'] .sync-button {
+  border-radius: 9px;
+}
+:root[data-window-platform='macos'] .thread-popup {
+  top: calc(100% + 6px);
+  padding: 6px;
+  border-radius: 12px;
+}
+:root[data-window-platform='macos'] .thread-popup[data-native-glass='true'] {
+  border-radius: 16px;
+  border-color: transparent;
+  box-shadow: none;
+  background: var(--window-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-window-platform='macos'] .thread-option {
+  border-radius: 6px;
+}
+:root[data-window-platform='macos'] {
+  --dialog-top: calc(var(--native-titlebar-height, 52px) + 8px);
+}
+:root[data-window-platform='macos'] .composer {
+  border-radius: var(--window-radius, 8px);
+}
+:root[data-window-platform='macos'] .model-settings-popup {
+  --model-popup-bg: var(--window-bg);
+}
 
-.macos-window.compact > .mini-status { align-self: flex-end; flex-shrink: 0; }
-.macos-window[data-restore-phase="preparing"] > .chat-panel { visibility: hidden; }
-.macos-window[data-restore-phase="appearing"] > .chat-panel { animation: macos-restore-appear 100ms ease-out both; }
-@keyframes macos-restore-appear { from { opacity: 0; } to { opacity: 1; } }
+.macos-window.compact > .mini-status {
+  align-self: flex-end;
+  flex-shrink: 0;
+}
+.macos-window[data-restore-phase='preparing'] > .chat-panel {
+  visibility: hidden;
+}
+.macos-window[data-restore-phase='appearing'] > .chat-panel {
+  animation: macos-restore-appear 100ms ease-out both;
+}
+@keyframes macos-restore-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .macos-window[data-restore-phase="appearing"] > .chat-panel { animation: none; }
+  .macos-window[data-restore-phase='appearing'] > .chat-panel {
+    animation: none;
+  }
 }
 
 /* All popup surfaces use the same native glass and theme tint as Settings. */
-:root[data-window-platform="macos"] :is(.model-settings-popup, .context-picker, .file-preview, .mcp-app-card.expanded, .rich-preview.expanded)[data-native-glass="true"] {
- border-radius: 16px;
- border-color: transparent;
- box-shadow: none;
- background: var(--window-bg);
- -webkit-backdrop-filter: none;
- backdrop-filter: none;
+:root[data-window-platform='macos']
+  :is(
+    .model-settings-popup,
+    .context-picker,
+    .file-preview,
+    .mcp-app-card.expanded,
+    .rich-preview.expanded
+  )[data-native-glass='true'] {
+  border-radius: 16px;
+  border-color: transparent;
+  box-shadow: none;
+  background: var(--window-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
-:root[data-window-platform="macos"] :is(.mcp-app-card, .rich-preview)[data-native-glass="true"]::backdrop { background: transparent; }
+:root[data-window-platform='macos']
+  :is(.mcp-app-card, .rich-preview)[data-native-glass='true']::backdrop {
+  background: transparent;
+}

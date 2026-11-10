@@ -224,6 +224,7 @@ unsafe fn read_window(
         ..Default::default()
     })
 }
+#[cfg(test)]
 pub fn read_pages() -> Result<Vec<ContextItem>, String> {
     read_pages_with_limit(32_000)
 }

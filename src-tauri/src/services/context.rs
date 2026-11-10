@@ -575,7 +575,7 @@ mod tests {
             path: format!("codex://threads/{id}"),
             ..Default::default()
         };
-        let (text, inputs, attachments) = prepare("参考", &[item.clone()]).unwrap();
+        let (text, inputs, attachments) = prepare("参考", std::slice::from_ref(&item)).unwrap();
         assert!(text.contains("参考对话：[另一个 \\[计划\\]](codex://threads/"));
         assert!(!text.contains("read_thread"));
         assert!(inputs.is_empty());

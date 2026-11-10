@@ -191,5 +191,9 @@ pub fn on_event(window: &Window, event: &WindowEvent) {
 }
 
 // Windows keeps the standard Tauri topmost behavior.
-pub fn is_pinned(window: &WebviewWindow) -> tauri::Result<bool> { window.is_always_on_top() }
-pub fn set_pinned(window: &WebviewWindow, pinned: bool) -> tauri::Result<()> { window.set_always_on_top(pinned) }
+pub fn is_pinned(window: &WebviewWindow) -> tauri::Result<bool> {
+    window.is_always_on_top()
+}
+pub fn set_pinned(window: &WebviewWindow, pinned: bool) -> tauri::Result<()> {
+    window.set_always_on_top(pinned)
+}

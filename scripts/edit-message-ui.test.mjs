@@ -26,7 +26,7 @@ test('editing earlier messages uses the owner edit API, guards stale history and
   if(cmd==='edit_sent_message'){if(rejectEdit)throw 'owner unavailable';return new Promise(resolve=>{finishEdit=resolve;});}
   throw Error(`Unexpected command: ${cmd}`);
  }};
- const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},plugins:[{name:'expose-root',enforce:'pre',transform(code,id){if(id.replaceAll('\\','/').endsWith('/src/main.jsx'))return code.replace("createRoot(document.getElementById('root')).render(<App/>);","export const testRoot=createRoot(document.getElementById('root'));testRoot.render(<App/>);");}}],server:{middlewareMode:true,hmr:false,ws:false,watch:null},appType:'custom'});
+ const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},plugins:[{name:'expose-root',enforce:'pre',transform(code,id){if(id.replaceAll('\\','/').endsWith('/src/main.jsx'))return code.replace(/createRoot\(document\.getElementById\('root'\)\)\.render\(<App\s*\/>\);/u,"export const testRoot=createRoot(document.getElementById('root'));testRoot.render(<App/>);");}}],server:{middlewareMode:true,hmr:false,ws:false,watch:null},appType:'custom'});
  let module;
  try{
   await act(async()=>{module=await vite.ssrLoadModule('/src/main.jsx');await new Promise(resolve=>setTimeout(resolve,150));});

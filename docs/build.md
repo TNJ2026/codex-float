@@ -54,6 +54,21 @@ Windows 机器不能代替 Mac 进行 `.app` / `.dmg` 构建与运行验收。�
 
 ## GitHub Actions
 
-工作流在 `main` 推送、`v*` tag、PR 或手动触发时运行；分别检查 Windows x64、macOS Apple Silicon 与 macOS Intel。流程执行前端测试、Rust 测试和原生构建，并保存 exe / Mac app zip 为构建附件。它不创建 Release、不自动上传公开版本、不调用真实聊天或账号查询。
+工作流在 `main` 推送、`v*` tag、PR 或手动触发时运行；分别检查 Windows x64、macOS Apple Silicon 与 macOS Intel。流程执行 ESLint、Prettier、rustfmt、Clippy（告警视为失败）、前端测试、Rust 测试和原生构建。普通构建保存 Windows 安装包 / 便携 zip 和 macOS DMG；`v*` tag 构建成功后由单独拥有 `contents: write` 的发布任务发布 Release。流程不调用真实聊天或账号查询。
 
-本地没有运行过 Mac CI；上传 GitHub 后需检查两个 Mac job 的结果。Mac `.app` 使用 `ditto` 打包后上传以保留执行权限。所用 `macos-15` 与 `macos-15-intel` 标签对应 GitHub 的 ARM / Intel runner。[GitHub runner 说明](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
+所有第三方 Action 固定为完整提交 SHA，Dependabot 每周检查更新。Rust 缓存按平台隔离，仅 `main` 的 push 写入缓存；PR 可以读取缓存。本地检查命令如下：
+
+```bash
+rustup component add rustfmt clippy
+npm run lint
+npm run format:check
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+npm test
+npm run build
+cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+```
+
+`npm run format` 和 `cargo fmt --manifest-path src-tauri/Cargo.toml` 可修复格式。前端格式化范围为 `src`、工具配置和工作流；ESLint 检查 `src` 下的 JS / JSX。`SessionMessage.jsx` 负责消息呈现，`useSessionConnection.js` 负责聊天发现、连接与流订阅，`SessionView.jsx` 负责会话交互的组合。
+
+本地 Windows 检查不能代替 Mac CI；上传 GitHub 后需检查两个 Mac job 的结果。Mac 构建使用 DMG 保留应用包及其权限。所用 `macos-15` 与 `macos-15-intel` 标签对应 GitHub 的 ARM / Intel runner。[GitHub runner 说明](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)

@@ -21,7 +21,11 @@ pub fn run() {
         .manage(services::mcp_tool_calls::McpToolState::default())
         .manage(services::forks::ForkState::default())
         .manage(services::predictions::PredictionState::default())
-        .setup(platform::initialize)
+        .setup(|app| {
+            platform::initialize(app)?;
+            services::attachments::initialize(app.handle().clone());
+            Ok(())
+        })
         .on_window_event(platform::on_window_event)
         .invoke_handler(tauri::generate_handler![
             codex::commands::connect_thread,

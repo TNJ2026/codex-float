@@ -1,10 +1,10 @@
-pub(crate) mod caption;
-mod desktop_acrylic;
 pub(crate) mod background;
+pub(crate) mod browser_context;
+pub(crate) mod caption;
+pub(crate) mod clipboard;
 mod custom_blur;
+mod desktop_acrylic;
 pub(crate) mod process;
 pub(crate) mod shell;
 pub(crate) mod transport;
 pub(crate) mod window;
-pub(crate) mod clipboard;
-pub(crate) mod browser_context;

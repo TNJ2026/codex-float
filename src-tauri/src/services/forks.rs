@@ -8,8 +8,10 @@ use std::{
 };
 use tauri::Manager;
 
+type ForkRecord = (String, String, Option<Result<Value, String>>);
+
 #[derive(Default)]
-pub struct ForkState(Mutex<HashMap<String, (String, String, Option<Result<Value, String>>)>>);
+pub struct ForkState(Mutex<HashMap<String, ForkRecord>>);
 struct ForkProcess(Child);
 impl Drop for ForkProcess {
     fn drop(&mut self) {

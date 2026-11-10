@@ -1,6 +1,6 @@
 mod client;
-mod discovery;
 pub(crate) mod commands;
+mod discovery;
 pub(crate) mod index;
 pub(crate) mod paths;
 mod projects;

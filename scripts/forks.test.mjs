@@ -42,7 +42,7 @@ test('message fork opens the actual child, restores settings and keeps the unsen
   if(cmd==='restore_fork_settings')return {threadSettings:{model:'test',permissions:':read-only',collaborationMode:{mode:'plan'}}};
   throw Error('Unexpected command: '+cmd);
  }};
- const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},plugins:[{name:'root',enforce:'pre',transform(code,id){if(id.replaceAll('\\','/').endsWith('/src/main.jsx'))return code.replace("createRoot(document.getElementById('root')).render(<App/>);","export const testRoot=createRoot(document.getElementById('root'));testRoot.render(<App/>);");}}],server:{middlewareMode:true,hmr:false,ws:false,watch:null},appType:'custom'});let module;
+ const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},plugins:[{name:'root',enforce:'pre',transform(code,id){if(id.replaceAll('\\','/').endsWith('/src/main.jsx'))return code.replace(/createRoot\(document\.getElementById\('root'\)\)\.render\(<App\s*\/>\);/u,"export const testRoot=createRoot(document.getElementById('root'));testRoot.render(<App/>);");}}],server:{middlewareMode:true,hmr:false,ws:false,watch:null},appType:'custom'});let module;
  try{
   await act(async()=>{module=await vite.ssrLoadModule('/src/main.jsx');await new Promise(r=>setTimeout(r,180));});await act(async()=>new Promise(r=>setTimeout(r,180)));
   await act(async()=>{const input=document.querySelector('#prompt-input');Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,'value').set.call(input,'unsent draft');input.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});

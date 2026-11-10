@@ -28,11 +28,12 @@ pub(crate) struct Client {
     pending: Mutex<HashMap<String, mpsc::Sender<Value>>>,
     id: Mutex<String>,
     pub(crate) binding: Mutex<Option<(String, String)>>,
+    pub(crate) connecting: Mutex<()>,
     snapshots: Mutex<HashMap<String, mpsc::Sender<Value>>>,
     alive: std::sync::atomic::AtomicBool,
 }
 impl Client {
-    fn open(app: tauri::AppHandle) -> Result<Arc<Self>, String> {
+    fn open(app: tauri::AppHandle) -> Result<(Arc<Self>, TaskGuard), String> {
         let (outgoing, mut outgoing_rx) = tokio::sync::mpsc::unbounded_channel::<Value>();
         let (ready_tx, ready_rx) = mpsc::channel();
         let client = Arc::new(Self {
@@ -40,6 +41,7 @@ impl Client {
             pending: Mutex::new(HashMap::new()),
             id: Mutex::new("initializing-client".into()),
             binding: Mutex::new(None),
+            connecting: Mutex::new(()),
             snapshots: Mutex::new(HashMap::new()),
             alive: std::sync::atomic::AtomicBool::new(true),
         });
@@ -138,8 +140,8 @@ impl Client {
             .as_str()
             .ok_or("初始化未返回客户端 ID")?
             .into();
-        connection_task.detach();
-        Ok(client)
+        // Bridge owns cancellation until the initialized client is published.
+        Ok((client, connection_task))
     }
     fn write(&self, message: Value) -> Result<(), String> {
         self.writer
@@ -190,7 +192,7 @@ impl Client {
     ) -> Result<Option<Value>, String> {
         let (tx, rx) = mpsc::channel();
         {
-            let mut slots = self.snapshots.lock().map_err(|_| "子代理连接不可用")?;
+            let mut slots = self.snapshots.lock().map_err(|_| "聊天连接不可用")?;
             if slots.contains_key(thread) {
                 return Err("该聊天正在同步，请稍后重试".into());
             }
@@ -221,7 +223,11 @@ impl Client {
                 .map_err(|_| cursor_error.unwrap_or_else(|| "尚未收到聊天状态，请刷新重试".into()))
         })();
         // A confirmation snapshot for the selected chat must retain its live subscription.
-        let is_bound = self.binding.lock().unwrap().as_ref()
+        let is_bound = self
+            .binding
+            .lock()
+            .unwrap()
+            .as_ref()
             .is_some_and(|binding| binding.0 == thread && binding.1 == owner);
         if require_snapshot && !is_bound {
             let _ = self.follow(thread, owner, false);
@@ -236,28 +242,255 @@ impl Client {
     }
 }
 #[derive(Default)]
-pub(crate) struct Bridge(Mutex<Option<Arc<Client>>>);
-pub(crate) fn get_client(app: &tauri::AppHandle) -> Result<Arc<Client>, String> {
-    let state = app.state::<Bridge>();
-    let mut slot = state.0.lock().unwrap();
-    if slot
-        .as_ref()
-        .is_none_or(|c| !c.alive.load(std::sync::atomic::Ordering::SeqCst))
-    {
-        *slot = Some(Client::open(app.clone())?);
+struct BridgeSlot {
+    client: Option<Arc<Client>>,
+    closed: bool,
+}
+
+#[derive(Default)]
+pub(crate) struct Bridge {
+    slot: Mutex<BridgeSlot>,
+    opening: Mutex<()>,
+}
+impl Bridge {
+    fn current(&self) -> Result<Option<Arc<Client>>, String> {
+        let slot = self.slot.lock().unwrap();
+        if slot.closed {
+            return Err("Codex 连接已关闭".into());
+        }
+        Ok(slot
+            .client
+            .as_ref()
+            .filter(|client| client.alive.load(std::sync::atomic::Ordering::SeqCst))
+            .cloned())
     }
-    Ok(slot.as_ref().unwrap().clone())
+
+    fn get_or_open(
+        &self,
+        open: impl FnOnce() -> Result<(Arc<Client>, TaskGuard), String>,
+    ) -> Result<Arc<Client>, String> {
+        if let Some(client) = self.current()? {
+            return Ok(client);
+        }
+        // Serialize initializers without holding the slot needed by shutdown.
+        let _opening = self.opening.lock().unwrap();
+        if let Some(client) = self.current()? {
+            return Ok(client);
+        }
+        let (client, task) = open()?;
+        let mut slot = self.slot.lock().unwrap();
+        if slot.closed {
+            return Err("Codex 连接已关闭".into());
+        }
+        slot.client = Some(client.clone());
+        task.detach();
+        Ok(client)
+    }
+
+    fn shutdown(&self) {
+        let client = {
+            let mut slot = self.slot.lock().unwrap();
+            slot.closed = true;
+            slot.client.take()
+        };
+        if let Some(client) = client {
+            client.unbind();
+        }
+    }
+}
+
+pub(crate) fn get_client(app: &tauri::AppHandle) -> Result<Arc<Client>, String> {
+    app.state::<Bridge>()
+        .get_or_open(|| Client::open(app.clone()))
 }
 
 pub(crate) fn shutdown(app: &tauri::AppHandle) {
-    if let Some(client) = app.state::<Bridge>().0.lock().unwrap().as_ref() {
-        client.unbind();
-    }
+    app.state::<Bridge>().shutdown();
 }
 
 #[cfg(test)]
 mod history_tests {
     use super::*;
+
+    fn test_client() -> (Arc<Client>, tokio::sync::mpsc::UnboundedReceiver<Value>) {
+        let (writer, outgoing) = tokio::sync::mpsc::unbounded_channel();
+        (
+            Arc::new(Client {
+                writer,
+                pending: Mutex::new(HashMap::new()),
+                id: Mutex::new("test-client".into()),
+                binding: Mutex::new(None),
+                connecting: Mutex::new(()),
+                snapshots: Mutex::new(HashMap::new()),
+                alive: std::sync::atomic::AtomicBool::new(true),
+            }),
+            outgoing,
+        )
+    }
+
+    fn reply(client: &Client, request: &Value, response: Value) {
+        client.pending.lock().unwrap()[request["requestId"].as_str().unwrap()]
+            .send(response)
+            .unwrap();
+    }
+
+    #[test]
+    fn concurrent_initializers_share_one_client() {
+        let bridge = Bridge::default();
+        let (client, _outgoing) = test_client();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        std::thread::scope(|scope| {
+            let bridge_ref = &bridge;
+            let first = scope.spawn(move || {
+                bridge_ref.get_or_open(|| {
+                    started_tx.send(()).unwrap();
+                    release_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                    Ok((client, TaskGuard(None)))
+                })
+            });
+            started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            // The slot stays available while transport initialization blocks.
+            assert!(bridge.slot.try_lock().is_ok());
+            let second = scope.spawn(|| bridge.get_or_open(|| panic!("duplicate initializer")));
+            release_tx.send(()).unwrap();
+            let first = first.join().unwrap().unwrap();
+            let second = second.join().unwrap().unwrap();
+            assert!(Arc::ptr_eq(&first, &second));
+        });
+    }
+
+    #[test]
+    fn failed_initialization_can_be_retried() {
+        let bridge = Bridge::default();
+        assert!(bridge
+            .get_or_open(|| Err("initialization failed".into()))
+            .is_err());
+        let (client, _outgoing) = test_client();
+        assert!(bridge.get_or_open(|| Ok((client, TaskGuard(None)))).is_ok());
+    }
+
+    #[test]
+    fn shutdown_during_initialization_does_not_wait_or_publish_and_cancels_transport() {
+        let bridge = Bridge::default();
+        let (client, _outgoing) = test_client();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let (released_tx, released_rx) = mpsc::channel();
+        std::thread::scope(|scope| {
+            let bridge_ref = &bridge;
+            let worker = scope.spawn(move || {
+                bridge_ref.get_or_open(|| {
+                    let resource = Released(released_tx, "transport");
+                    let task = TaskGuard(Some(tauri::async_runtime::spawn(async move {
+                        let _resource = resource;
+                        started_tx.send(()).unwrap();
+                        std::future::pending::<()>().await;
+                    })));
+                    release_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                    Ok((client, task))
+                })
+            });
+            started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            let (stopped_tx, stopped_rx) = mpsc::channel();
+            scope.spawn(move || {
+                bridge_ref.shutdown();
+                stopped_tx.send(()).unwrap();
+            });
+            let stopped = stopped_rx.recv_timeout(Duration::from_secs(2));
+            // Release even on failure so a lock regression cannot deadlock the test.
+            release_tx.send(()).unwrap();
+            stopped.unwrap();
+            assert!(worker.join().unwrap().is_err());
+            assert!(bridge.slot.lock().unwrap().client.is_none());
+            assert!(bridge
+                .get_or_open(|| panic!("opened after shutdown"))
+                .is_err());
+        });
+        assert_eq!(
+            released_rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+            "transport"
+        );
+    }
+
+    #[test]
+    fn concurrent_chat_connections_serialize_binding_and_failure_cleanup() {
+        for second_thread in ["first", "second"] {
+            for second_succeeds in [true, false] {
+                let (client, mut outgoing) = test_client();
+                // Forward transport messages to a channel with bounded test waits.
+                let (messages_tx, messages_rx) = mpsc::channel();
+                let forwarder = tauri::async_runtime::spawn(async move {
+                    while let Some(message) = outgoing.recv().await {
+                        if messages_tx.send(message).is_err() {
+                            break;
+                        }
+                    }
+                });
+                let next = || messages_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                std::thread::scope(|scope| {
+                    let first =
+                        scope.spawn(|| super::super::commands::connect_client(&client, "first"));
+                    let discovery = next();
+                    assert_eq!(discovery["method"], "thread-owner-discovery");
+                    reply(
+                        &client,
+                        &discovery,
+                        json!({"resultType":"success","handledByClientId":"owner"}),
+                    );
+                    assert_eq!(next()["params"]["following"], true);
+                    let history = next();
+                    assert_eq!(history["method"], "thread-follower-load-complete-history");
+                    assert!(client.connecting.try_lock().is_err());
+                    let (started_tx, started_rx) = mpsc::channel();
+                    let client_ref = &client;
+                    let second = scope.spawn(move || {
+                        started_tx.send(()).unwrap();
+                        super::super::commands::connect_client(client_ref, second_thread)
+                    });
+                    started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                    assert!(messages_rx
+                        .recv_timeout(Duration::from_millis(100))
+                        .is_err());
+                    reply(&client, &history, json!({"resultType":"success"}));
+                    assert_eq!(first.join().unwrap().unwrap()["connected"], true);
+                    let discovery = next();
+                    assert_eq!(discovery["method"], "thread-owner-discovery");
+                    reply(
+                        &client,
+                        &discovery,
+                        json!({"resultType":"success","handledByClientId":"owner"}),
+                    );
+                    assert_eq!(next()["params"]["following"], false);
+                    assert_eq!(next()["params"]["following"], true);
+                    let history = next();
+                    reply(
+                        &client,
+                        &history,
+                        if second_succeeds {
+                            json!({"resultType":"success"})
+                        } else {
+                            json!({"resultType":"error","error":"history unavailable"})
+                        },
+                    );
+                    let result = second.join().unwrap();
+                    if second_succeeds {
+                        assert_eq!(result.unwrap()["connected"], true);
+                        assert_eq!(
+                            *client.binding.lock().unwrap(),
+                            Some((second_thread.into(), "owner".into()))
+                        );
+                    } else {
+                        assert_eq!(result, Err("history unavailable".into()));
+                        assert_eq!(next()["params"]["following"], false);
+                        assert!(client.binding.lock().unwrap().is_none());
+                    }
+                    assert!(client.snapshots.lock().unwrap().is_empty());
+                });
+                forwarder.abort();
+            }
+        }
+    }
 
     struct Released(mpsc::Sender<&'static str>, &'static str);
     impl Drop for Released {
@@ -313,18 +546,27 @@ mod history_tests {
                 pending: Mutex::new(HashMap::new()),
                 id: Mutex::new("test-client".into()),
                 binding: Mutex::new(bound.then(|| ("thread".into(), "owner".into()))),
+                connecting: Mutex::new(()),
                 snapshots: Mutex::new(HashMap::new()),
                 alive: std::sync::atomic::AtomicBool::new(true),
             };
             std::thread::scope(|scope| {
                 let worker = scope.spawn(|| client.inspect_thread("thread", "owner"));
-                assert_eq!(outgoing.blocking_recv().unwrap()["params"]["following"], true);
+                assert_eq!(
+                    outgoing.blocking_recv().unwrap()["params"]["following"],
+                    true
+                );
                 let request = outgoing.blocking_recv().unwrap();
                 client.snapshots.lock().unwrap()["thread"]
-                    .send(json!({"latestThreadSettings":{"permissions":":read-only"}})).unwrap();
+                    .send(json!({"latestThreadSettings":{"permissions":":read-only"}}))
+                    .unwrap();
                 client.pending.lock().unwrap()[request["requestId"].as_str().unwrap()]
-                    .send(json!({"resultType":"success","result":{}})).unwrap();
-                assert_eq!(worker.join().unwrap().unwrap()["latestThreadSettings"]["permissions"], ":read-only");
+                    .send(json!({"resultType":"success","result":{}}))
+                    .unwrap();
+                assert_eq!(
+                    worker.join().unwrap().unwrap()["latestThreadSettings"]["permissions"],
+                    ":read-only"
+                );
                 if bound {
                     assert!(outgoing.try_recv().is_err());
                 } else {
@@ -350,6 +592,7 @@ mod history_tests {
                 pending: Mutex::new(HashMap::new()),
                 id: Mutex::new("test-client".into()),
                 binding: Mutex::new(None),
+                connecting: Mutex::new(()),
                 snapshots: Mutex::new(HashMap::new()),
                 alive: std::sync::atomic::AtomicBool::new(true),
             };

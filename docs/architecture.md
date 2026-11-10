@@ -159,6 +159,7 @@ sequenceDiagram
 | 服务 | 主要用途 |
 | --- | --- |
 | `attachments.rs`、`context.rs` | 附件检查、粘贴内容保存、上下文搜索和发送参数组织 |
+| `attachment_cache.rs` | 粘贴附件缓存的保留期限、容量限制和启动清理 |
 | `model_settings.rs`、`permissions.rs`、`speed_settings.rs` | 查询可用选项并更新当前聊天设置 |
 | `catalog.rs`、`usage.rs` | 查询技能、插件和额度等辅助信息 |
 | `interactions.rs`、`stop.rs` | 构造交互回复与停止具体任务 |
@@ -199,7 +200,13 @@ Rust 的 `MiniModeState` 管理原生模式和正常窗口快照，前端 `useWi
 
 [mcp_apps.rs](../src-tauri/src/services/mcp_apps.rs) 在 `127.0.0.1` 的动态端口提供临时页面，通过随机 token 标识资源，并检查请求 Host。卡片卸载后释放资源。`mcp_tool_calls.rs` 处理卡片工具调用与请求回复；前端通过 `McpAppCard` 对接资源、主题、尺寸、审批和工具结果。
 
-关键边界包括：Tauri capabilities 与 CSP、iframe sandbox、临时资源作用域、文件和附件检查，以及聊天 ID 与当前绑定校验。具体权限以各功能实现为准；这些机制不能被理解为对任意第三方卡片行为的保证。
+关键边界包括：Tauri capabilities 与 CSP、iframe sandbox、临时资源作用域、文件和附件检查，以及聊天 ID 与当前绑定校验。正式构建的卡片 / 预览 CSP 只允许 Tauri 页面作为父页面；开发端口仅在 Tauri 开发模式下加入。具体权限以各功能实现为准；这些机制不能被理解为对任意第三方卡片行为的保证。
+
+`open_file` 只允许常见文档、图片、音视频、压缩包及部分源文件类型，并检查解析后的真实路径、可执行文件头，以及 Unix 可执行权限。程序、脚本、快捷方式、应用包和未知类型需在文件管理器中检查后手动打开；“在文件夹中显示”不受此类型限制。
+
+粘贴和拖入 WebView 的内容保存在应用数据目录的 `attachments/<uuid>/`。启动及保存新附件时清理超过 30 天的旧缓存；本次运行新建的缓存受到保护。总量上限为 512 MiB，达到上限会拒绝新增写入，不会为腾空间删除近期附件。历史消息中的缓存图片超过保留期限后可能无法再预览；用户选择的原始文件不在清理范围。清理不遍历符号链接、目录联接和非 UUID 目录。
+
+应用标识改为 `local.codex.float`，系统会为其使用新的应用数据目录。旧标识目录中的偏好和 WebView 数据未自动迁移；已有附件路径保持原样，旧 `attachments` 缓存仍参与启动时的过期清理。缓存清理不会删除这些偏好或 WebView 数据。
 
 桌面聊天使用的是 Codex 内部本地 IPC 协议，协议可能随桌面端升级而变化。需要保持本机 Codex 运行并打开目标聊天；登录和未支持的主 App 专用交互仍在主窗口处理。
 

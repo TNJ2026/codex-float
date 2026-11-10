@@ -165,9 +165,18 @@ pub fn refresh_language(hwnd: HWND) {
     let text = crate::services::ui_language::text;
     unsafe {
         let menu = GetSystemMenu(hwnd, 0);
-        for (id, label) in [(SETTINGS, text("设置", "Settings")), (PIN, text("切换置顶", "Toggle always on top"))] {
+        for (id, label) in [
+            (SETTINGS, text("设置", "Settings")),
+            (PIN, text("切换置顶", "Toggle always on top")),
+        ] {
             let label: Vec<u16> = label.encode_utf16().chain(Some(0)).collect();
-            ModifyMenuW(menu, id, MF_BYCOMMAND | MF_STRING, id as usize, label.as_ptr());
+            ModifyMenuW(
+                menu,
+                id,
+                MF_BYCOMMAND | MF_STRING,
+                id as usize,
+                label.as_ptr(),
+            );
         }
         DrawMenuBar(hwnd);
     }

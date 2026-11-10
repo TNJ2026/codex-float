@@ -24,7 +24,13 @@ pub(crate) fn indexed_threads(limit: usize) -> Result<Vec<Value>, String> {
 }
 
 #[tauri::command]
-pub fn list_threads() -> Result<Value, String> {
+pub async fn list_threads() -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(read_threads)
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+fn read_threads() -> Result<Value, String> {
     let home = super::paths::codex_home()?;
     let threads = indexed_threads(60)?;
     let model_cache: Value = std::fs::read_to_string(home.join("models_cache.json"))

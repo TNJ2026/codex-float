@@ -1,13 +1,14 @@
+use crate::services::ui_language::text;
 use objc2::{
     define_class, msg_send, rc::Retained, runtime::ProtocolObject, sel, AnyThread, DefinedClass,
     MainThreadMarker, MainThreadOnly,
 };
 use objc2_app_kit::{
-    NSAppearanceCustomization, NSAppearanceNameAqua, NSAppearanceNameDarkAqua,
-    NSButton, NSButtonType, NSCellImagePosition, NSColor, NSImage, NSImageScaling,
-    NSImageSymbolConfiguration, NSImageSymbolScale, NSStackView, NSLayoutAttribute,
-    NSUserInterfaceLayoutOrientation, NSToolbar, NSToolbarDelegate,
-    NSToolbarDisplayMode, NSToolbarItem, NSToolbarItemIdentifier, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
+    NSAppearanceCustomization, NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSButton,
+    NSButtonType, NSCellImagePosition, NSColor, NSImage, NSImageScaling,
+    NSImageSymbolConfiguration, NSImageSymbolScale, NSLayoutAttribute, NSStackView, NSToolbar,
+    NSToolbarDelegate, NSToolbarDisplayMode, NSToolbarItem, NSToolbarItemIdentifier,
+    NSUserInterfaceLayoutOrientation, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     NSWindowTitleVisibility, NSWindowToolbarStyle,
 };
 use objc2_foundation::{
@@ -15,7 +16,6 @@ use objc2_foundation::{
 };
 use std::cell::RefCell;
 use tauri::{Emitter, Manager, WebviewWindow};
-use crate::services::ui_language::text;
 
 struct Context {
     app: tauri::AppHandle,
@@ -60,7 +60,9 @@ fn vector_image(bytes: &[u8], label: &str) -> Option<Retained<NSImage>> {
 fn apply_button_tint(button: &NSButton) {
     // Resolve the window's actual appearance, including an explicit app theme.
     let names = NSArray::from_slice(unsafe { &[NSAppearanceNameAqua, NSAppearanceNameDarkAqua] });
-    let light = button.effectiveAppearance().bestMatchFromAppearancesWithNames(&names)
+    let light = button
+        .effectiveAppearance()
+        .bestMatchFromAppearancesWithNames(&names)
         .is_some_and(|name| name.isEqualToString(unsafe { NSAppearanceNameAqua }));
     let pinned = button.tag() == 1 && button.state() == 1;
     let tint = if light {
@@ -126,7 +128,11 @@ define_class!(
 );
 
 fn pin_item(item: &NSToolbarItem, pinned: bool) {
-    let label = if pinned { text("取消置顶", "Disable always on top") } else { text("置顶", "Always on top") };
+    let label = if pinned {
+        text("取消置顶", "Disable always on top")
+    } else {
+        text("置顶", "Always on top")
+    };
     item.setLabel(&NSString::from_str(label));
     item.setToolTip(Some(&NSString::from_str(label)));
     let icon = vector_image(include_bytes!("../../../icons/pin-template.pdf"), label);
@@ -199,8 +205,12 @@ impl ToolbarDelegate {
                 .into_iter()
                 .map(|id| self.make_item(&NSString::from_str(id)))
                 .collect::<Option<Vec<_>>>()?;
-            let views = actions.iter().map(|item| item.view()).collect::<Option<Vec<_>>>()?;
-            let stack = NSStackView::stackViewWithViews(&NSArray::from_retained_slice(&views), self.mtm());
+            let views = actions
+                .iter()
+                .map(|item| item.view())
+                .collect::<Option<Vec<_>>>()?;
+            let stack =
+                NSStackView::stackViewWithViews(&NSArray::from_retained_slice(&views), self.mtm());
             stack.setOrientation(NSUserInterfaceLayoutOrientation::Horizontal);
             stack.setAlignment(NSLayoutAttribute::CenterY);
             stack.setSpacing(4.0);
@@ -211,9 +221,16 @@ impl ToolbarDelegate {
             };
             container.addSubview(&stack);
             container.setTranslatesAutoresizingMaskIntoConstraints(false);
-            container.widthAnchor().constraintEqualToConstant(116.0).setActive(true);
-            container.heightAnchor().constraintEqualToConstant(28.0).setActive(true);
-            let item = NSToolbarItem::initWithItemIdentifier(NSToolbarItem::alloc(self.mtm()), identifier);
+            container
+                .widthAnchor()
+                .constraintEqualToConstant(116.0)
+                .setActive(true);
+            container
+                .heightAnchor()
+                .constraintEqualToConstant(28.0)
+                .setActive(true);
+            let item =
+                NSToolbarItem::initWithItemIdentifier(NSToolbarItem::alloc(self.mtm()), identifier);
             item.setBordered(false);
             item.setView(Some(&container));
             self.ivars().actions.replace(actions);
@@ -235,8 +252,13 @@ impl ToolbarDelegate {
         // these with a standard image toolbar item gives unequal center spacing.
         {
             // SAFETY: This native button subclass only adds appearance-aware tinting.
-            let button: Retained<ToolbarButton> = unsafe { msg_send![ToolbarButton::alloc(self.mtm()), init] };
-            button.setTag(if identifier.to_string() == "float.pin" { 1 } else { 0 });
+            let button: Retained<ToolbarButton> =
+                unsafe { msg_send![ToolbarButton::alloc(self.mtm()), init] };
+            button.setTag(if identifier.to_string() == "float.pin" {
+                1
+            } else {
+                0
+            });
             button.setTitle(&NSString::from_str(""));
             button.setButtonType(if identifier.to_string() == "float.pin" {
                 NSButtonType::PushOnPushOff
@@ -253,8 +275,14 @@ impl ToolbarDelegate {
             // layout AppKit otherwise shrinks these image-only custom views
             // to their 16-point images, crowding the three toolbar actions.
             button.setTranslatesAutoresizingMaskIntoConstraints(false);
-            button.widthAnchor().constraintEqualToConstant(28.0).setActive(true);
-            button.heightAnchor().constraintEqualToConstant(28.0).setActive(true);
+            button
+                .widthAnchor()
+                .constraintEqualToConstant(28.0)
+                .setActive(true);
+            button
+                .heightAnchor()
+                .constraintEqualToConstant(28.0)
+                .setActive(true);
             item.setView(Some(&button));
             if identifier.to_string() == "float.settings" {
                 let icon = vector_image(
@@ -429,7 +457,9 @@ pub fn refresh_language(window: &WebviewWindow) {
                 if let Some(view) = item.view() {
                     if let Some(button) = view.downcast_ref::<NSButton>() {
                         button.setToolTip(Some(&label));
-                        unsafe { let _: () = msg_send![button, setAccessibilityLabel: &*label]; }
+                        unsafe {
+                            let _: () = msg_send![button, setAccessibilityLabel: &*label];
+                        }
                     }
                 }
             }
@@ -439,7 +469,10 @@ pub fn refresh_language(window: &WebviewWindow) {
         for (id, label) in [
             ("float.settings", text("设置…", "Settings…")),
             ("float.pin", text("切换置顶", "Toggle always on top")),
-            ("float.mini", text("切换为悬浮状态球", "Switch to status ball")),
+            (
+                "float.mini",
+                text("切换为悬浮状态球", "Switch to status ball"),
+            ),
         ] {
             if let Some(tauri::menu::MenuItemKind::MenuItem(item)) = menu.get(id) {
                 let _ = item.set_text(label);

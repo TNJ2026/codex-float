@@ -1,4 +1,5 @@
 //! Native OS boundaries. Chat protocol, previews and window state stay shared.
+pub(crate) mod files;
 // Retained for the disabled ChatGPT integration.
 #[allow(dead_code)]
 pub(crate) mod app_tools;
@@ -9,7 +10,9 @@ mod windows;
 #[cfg(target_os = "macos")]
 pub(crate) use macos::{background, browser_context, clipboard, process, shell, transport, window};
 #[cfg(target_os = "windows")]
-pub(crate) use windows::{background, browser_context, clipboard, process, shell, transport, window};
+pub(crate) use windows::{
+    background, browser_context, clipboard, process, shell, transport, window,
+};
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
 compile_error!("CodexFloat currently targets Windows and macOS.");
 

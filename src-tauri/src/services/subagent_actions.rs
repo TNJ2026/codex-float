@@ -123,28 +123,46 @@ mod tests {
     use super::*;
     #[test]
     fn concurrent_children_never_share_targets_turns_or_message_ids() {
-        let handles:Vec<_>=(0..48).map(|index|std::thread::spawn(move||{
-            let child=format!("child-{}",index%3);let turn=format!("turn-{}",index%3);
-            let state=json!({"turns":[{"id":turn,"status":"inProgress"}]});
-            let text=format!("instruction-{index}");
-            let (_,_,send)=action_params(&child,&state,"send",&text,&turn).unwrap();
-            let (_,_,stop)=action_params(&child,&state,"stop","",&turn).unwrap();
-            assert_eq!(send["conversationId"],child);assert_eq!(send["input"][0]["text"],text);
-            assert_eq!(stop["conversationId"],child);assert_eq!(stop["expectedTurnId"],turn);
-            assert!(action_params(&child,&state,"stop","",&format!("turn-{}",(index+1)%3)).is_err());
-            send["clientUserMessageId"].as_str().unwrap().to_owned()
-        })).collect();
-        let ids:std::collections::HashSet<_>=handles.into_iter().map(|handle|handle.join().unwrap()).collect();assert_eq!(ids.len(),48);
+        let handles: Vec<_> = (0..48)
+            .map(|index| {
+                std::thread::spawn(move || {
+                    let child = format!("child-{}", index % 3);
+                    let turn = format!("turn-{}", index % 3);
+                    let state = json!({"turns":[{"id":turn,"status":"inProgress"}]});
+                    let text = format!("instruction-{index}");
+                    let (_, _, send) = action_params(&child, &state, "send", &text, &turn).unwrap();
+                    let (_, _, stop) = action_params(&child, &state, "stop", "", &turn).unwrap();
+                    assert_eq!(send["conversationId"], child);
+                    assert_eq!(send["input"][0]["text"], text);
+                    assert_eq!(stop["conversationId"], child);
+                    assert_eq!(stop["expectedTurnId"], turn);
+                    assert!(action_params(
+                        &child,
+                        &state,
+                        "stop",
+                        "",
+                        &format!("turn-{}", (index + 1) % 3)
+                    )
+                    .is_err());
+                    send["clientUserMessageId"].as_str().unwrap().to_owned()
+                })
+            })
+            .collect();
+        let ids: std::collections::HashSet<_> = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect();
+        assert_eq!(ids.len(), 48);
     }
     #[test]
     fn canonical_history_uses_latest_turn_and_rejects_invalid_operations() {
-        let state=json!({"turns":[],"turnHistory":{"history":{"entitiesByKey":{"old":{"turnId":"old","status":"completed"},"new":{"turnId":"new","status":"inProgress"}},"islands":[{"entries":[{"value":"old"},{"value":"new"}]},{"entries":[]}]}}});
-        assert!(action_params("child",&state,"stop","","old").is_err());
-        let (_,_,params)=action_params("child",&state,"stop","","new").unwrap();
-        assert_eq!(params["expectedTurnId"],"new");
-        assert!(action_params("child",&state,"send","   ","new").is_err());
-        assert!(action_params("child",&state,"delete","hello","new").is_err());
-        assert!(action_params("child",&json!({"turns":[]}),"send","hello","new").is_err());
+        let state = json!({"turns":[],"turnHistory":{"history":{"entitiesByKey":{"old":{"turnId":"old","status":"completed"},"new":{"turnId":"new","status":"inProgress"}},"islands":[{"entries":[{"value":"old"},{"value":"new"}]},{"entries":[]}]}}});
+        assert!(action_params("child", &state, "stop", "", "old").is_err());
+        let (_, _, params) = action_params("child", &state, "stop", "", "new").unwrap();
+        assert_eq!(params["expectedTurnId"], "new");
+        assert!(action_params("child", &state, "send", "   ", "new").is_err());
+        assert!(action_params("child", &state, "delete", "hello", "new").is_err());
+        assert!(action_params("child", &json!({"turns":[]}), "send", "hello", "new").is_err());
     }
     #[test]
     fn actions_target_only_the_child_and_guard_replaced_turns() {

@@ -14,6 +14,14 @@ use std::{
 use tauri::Manager;
 
 const MAX_HTML: usize = 8 * 1024 * 1024;
+
+fn frame_ancestors(development: bool) -> &'static str {
+    if development {
+        "http://tauri.localhost https://tauri.localhost tauri://localhost http://127.0.0.1:1420"
+    } else {
+        "http://tauri.localhost https://tauri.localhost tauri://localhost"
+    }
+}
 #[derive(Clone)]
 struct Page {
     html: String,
@@ -311,7 +319,8 @@ fn page_from_resource(result: &Value, uri: &str) -> Result<Page, String> {
     let resources = domains(&csp, "resourceDomains", false).join(" ");
     let connect = domains(&csp, "connectDomains", true).join(" ");
     let frames = domains(&csp, "frameDomains", false).join(" ");
-    let policy=format!("default-src 'none'; script-src 'unsafe-inline' {resources}; style-src 'unsafe-inline' {resources}; img-src data: blob: {resources}; font-src data: {resources}; media-src data: blob: {resources}; connect-src {}; frame-src {}; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors http://tauri.localhost https://tauri.localhost tauri://localhost http://127.0.0.1:1420",if connect.is_empty(){"'none'"}else{&connect},if frames.is_empty(){"'none'"}else{&frames});
+    let ancestors = frame_ancestors(tauri::is_dev());
+    let policy=format!("default-src 'none'; script-src 'unsafe-inline' {resources}; style-src 'unsafe-inline' {resources}; img-src data: blob: {resources}; font-src data: {resources}; media-src data: blob: {resources}; connect-src {}; frame-src {}; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors {ancestors}",if connect.is_empty(){"'none'"}else{&connect},if frames.is_empty(){"'none'"}else{&frames});
     let shim = format!(
         "<script>{}</script>",
         include_str!("../../../src/mcp-app-compat.js")
@@ -606,7 +615,8 @@ fn rich_page(kind: &str, code: &str, theme: &str, address: SocketAddr) -> Result
         format!("<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>html,body{{margin:0;font:13px system-ui}}#content{{width:100%;min-height:240px;overflow:auto}}.chart #content{{height:360px}}.zoom{{display:flex;gap:8px;padding:6px;position:sticky;top:0;z-index:1}}button{{font:inherit;cursor:pointer}}.diagram #content{{padding:8px;box-sizing:border-box}}</style>{bootstrap}<script src=\"http://{address}/rich-assets/{library}.js\"></script>{runner}</head><body class=\"{}\">{}<div id=\"content\"></div></body></html>",if kind=="mermaid"{"diagram"}else{"chart"},if kind=="mermaid"{"<div class=\"zoom\"><button id=\"zoom-out\">−</button><button id=\"zoom-reset\">100%</button><button id=\"zoom-in\">+</button></div>"}else{""})
     };
     let network = if kind == "html" { "https:" } else { "" };
-    let csp=format!("default-src 'none'; script-src 'unsafe-inline' http://{address} {network}; style-src 'unsafe-inline' {network}; img-src data: blob: {network}; font-src data: {network}; media-src data: blob: {network}; connect-src {}; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors http://tauri.localhost https://tauri.localhost tauri://localhost http://127.0.0.1:1420",if kind=="html"{"https: wss:"}else{"'none'"});
+    let ancestors = frame_ancestors(tauri::is_dev());
+    let csp=format!("default-src 'none'; script-src 'unsafe-inline' http://{address} {network}; style-src 'unsafe-inline' {network}; img-src data: blob: {network}; font-src data: {network}; media-src data: blob: {network}; connect-src {}; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors {ancestors}",if kind=="html"{"https: wss:"}else{"'none'"});
     Ok(Page {
         html,
         csp,
@@ -614,15 +624,28 @@ fn rich_page(kind: &str, code: &str, theme: &str, address: SocketAddr) -> Result
     })
 }
 #[tauri::command]
-pub fn load_rich_preview(
+pub async fn load_rich_preview(
     app: tauri::AppHandle,
     kind: String,
     code: String,
     theme: String,
 ) -> Result<LoadedApp, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        load_rich_preview_blocking(&app, &kind, &code, &theme)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+fn load_rich_preview_blocking(
+    app: &tauri::AppHandle,
+    kind: &str,
+    code: &str,
+    theme: &str,
+) -> Result<LoadedApp, String> {
     let state = app.state::<McpAppsState>();
     let address = state.address()?;
-    let page = rich_page(&kind, &code, &theme, address)?;
+    let page = rich_page(kind, code, theme, address)?;
     let token = uuid::Uuid::new_v4().to_string();
     let mut pages = state.pages.lock().map_err(|_| "预览服务不可用")?;
     if pages.len() >= 64 {
@@ -649,6 +672,23 @@ pub fn shutdown(app: &tauri::AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preview_policies_limit_the_development_origin_to_development_builds() {
+        assert!(!frame_ancestors(false).contains("127.0.0.1:1420"));
+        assert!(frame_ancestors(true).contains("127.0.0.1:1420"));
+        let address = "127.0.0.1:49152".parse().unwrap();
+        for kind in ["html", "mermaid", "echarts"] {
+            let code = match kind {
+                "mermaid" => "graph TD; A-->B",
+                "echarts" => "{}",
+                _ => "<p>test</p>",
+            };
+            let page = rich_page(kind, code, "light", address).unwrap();
+            assert_eq!(page.csp.contains("127.0.0.1:1420"), tauri::is_dev());
+            assert!(page.csp.contains("tauri://localhost"));
+        }
+    }
     #[test]
     fn rich_documents_escape_payloads_and_keep_scripts_in_the_sandbox() {
         let address = "127.0.0.1:12345".parse().unwrap();
@@ -718,6 +758,7 @@ mod tests {
     fn card_csp_is_scoped_and_html_is_isolated() {
         let result = json!({"contents":[{"uri":"ui://card","mimeType":"text/html;profile=mcp-app","text":"<!doctype html><html><head></head><body>card</body></html>","_meta":{"ui":{"csp":{"resourceDomains":["https://cdn.example.com","https://bad.example.com;script-src *","http://ipc.localhost"],"connectDomains":["https://api.example.com"],"frameDomains":[]}}}}]});
         let page = page_from_resource(&result, "ui://card").unwrap();
+        assert_eq!(page.csp.contains("127.0.0.1:1420"), tauri::is_dev());
         assert!(page.csp.contains("https://cdn.example.com"));
         assert!(!page.csp.contains("bad.example"));
         assert!(!page.csp.contains("ipc.localhost"));
@@ -747,11 +788,7 @@ mod tests {
             stream
                 .set_read_timeout(Some(Duration::from_secs(3)))
                 .unwrap();
-            write!(
-                stream,
-                "GET {path} HTTP/1.1\r\nHost: {host}\r\n\r\n"
-            )
-            .unwrap();
+            write!(stream, "GET {path} HTTP/1.1\r\nHost: {host}\r\n\r\n").unwrap();
             let mut reply = String::new();
             stream.read_to_string(&mut reply).unwrap();
             reply
@@ -760,12 +797,16 @@ mod tests {
         assert!(reply.starts_with("HTTP/1.1 200"));
         assert!(reply.contains("Content-Security-Policy:"));
         assert!(reply.ends_with("<p>card</p>"));
-        assert!(fetch("attacker.example".into(), "/mcp-app/test-token/index.html").starts_with("HTTP/1.1 404"));
+        assert!(
+            fetch("attacker.example".into(), "/mcp-app/test-token/index.html")
+                .starts_with("HTTP/1.1 404")
+        );
         let script = fetch(address.to_string(), "/rich-assets/mermaid.js");
         let (_, body) = script.split_once("\r\n\r\n").unwrap();
         assert!(body.as_bytes() == asset("/rich-assets/mermaid.js").unwrap());
         state.pages.lock().unwrap().clear();
-        assert!(fetch(address.to_string(), "/mcp-app/test-token/index.html").starts_with("HTTP/1.1 404"));
+        assert!(fetch(address.to_string(), "/mcp-app/test-token/index.html")
+            .starts_with("HTTP/1.1 404"));
         state.stopped.store(true, Ordering::Relaxed);
     }
     #[test]

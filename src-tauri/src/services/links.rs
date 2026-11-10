@@ -1,12 +1,22 @@
-use std::{fs::File, io::Read, path::Path};
+use std::{
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 #[tauri::command]
-pub fn open_url(url: String) -> Result<(), String> {
+pub async fn open_url(url: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || open_url_blocking(&url))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+fn open_url_blocking(url: &str) -> Result<(), String> {
     if url.starts_with("codex:") {
-        super::context::thread_reference_id(&url)?;
-        return crate::platform::shell::open_url(&url);
+        super::context::thread_reference_id(url)?;
+        return crate::platform::shell::open_url(url);
     }
-    let parsed = tauri::Url::parse(&url).map_err(|_| "链接地址无效")?;
+    let parsed = tauri::Url::parse(url).map_err(|_| "链接地址无效")?;
     if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
         return Err("仅支持 HTTP/HTTPS 网页链接".into());
     }
@@ -81,12 +91,14 @@ fn binary_extension(path: &Path) -> bool {
 
 fn decode_text(bytes: &[u8]) -> Result<String, String> {
     let text = if bytes.starts_with(&[0xff, 0xfe]) || bytes.starts_with(&[0xfe, 0xff]) {
-        if bytes.len() % 2 != 0 {
+        if !bytes.len().is_multiple_of(2) {
             return Err("文本编码不完整".into());
         }
         let little = bytes[0] == 0xff;
         let words: Vec<u16> = bytes[2..]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|v| {
                 if little {
                     u16::from_le_bytes([v[0], v[1]])
@@ -147,12 +159,141 @@ pub async fn read_file_preview(path: String) -> Result<FilePreview, String> {
 #[tauri::command]
 pub async fn open_file(path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let path = local_path(&path)?;
-        let path = path.canonicalize().map_err(|_| "文件不存在或无法访问")?;
+        let path = document_path(&path)?;
         crate::platform::shell::open_file(&path)
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+fn document_extension(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str(),
+        "txt"
+            | "md"
+            | "markdown"
+            | "log"
+            | "csv"
+            | "tsv"
+            | "json"
+            | "jsonl"
+            | "yaml"
+            | "yml"
+            | "toml"
+            | "ini"
+            | "cfg"
+            | "xml"
+            | "pdf"
+            | "rtf"
+            | "doc"
+            | "docx"
+            | "xls"
+            | "xlsx"
+            | "ppt"
+            | "pptx"
+            | "odt"
+            | "ods"
+            | "odp"
+            | "png"
+            | "jpg"
+            | "jpeg"
+            | "gif"
+            | "webp"
+            | "bmp"
+            | "avif"
+            | "ico"
+            | "tif"
+            | "tiff"
+            | "mp3"
+            | "wav"
+            | "m4a"
+            | "aac"
+            | "ogg"
+            | "oga"
+            | "opus"
+            | "flac"
+            | "mp4"
+            | "m4v"
+            | "webm"
+            | "mov"
+            | "ogv"
+            | "mkv"
+            | "avi"
+            | "zip"
+            | "7z"
+            | "rar"
+            | "tar"
+            | "gz"
+            | "bz2"
+            | "xz"
+            | "rs"
+            | "c"
+            | "h"
+            | "cpp"
+            | "hpp"
+            | "css"
+    )
+}
+
+// Default-app opening can execute scripts, shortcuts and native binaries. Keep
+// this check in the backend, including the resolved target and renamed binaries.
+fn document_path(path: &str) -> Result<PathBuf, String> {
+    const BLOCKED: &str = "此文件类型可能执行程序，请在文件管理器中检查后手动打开";
+    let original = local_path(path)?;
+    if !document_extension(original) {
+        return Err(BLOCKED.into());
+    }
+    let path = original
+        .canonicalize()
+        .map_err(|_| "文件不存在或无法访问")?;
+    if !document_extension(&path) {
+        return Err(BLOCKED.into());
+    }
+    if !crate::platform::files::is_local_path(&path) {
+        return Err(BLOCKED.into());
+    }
+    if !path
+        .metadata()
+        .map_err(|_| "文件不存在或无法访问")?
+        .is_file()
+    {
+        return Err(BLOCKED.into());
+    }
+    let file = File::open(&path).map_err(|_| "文件不存在或无法访问")?;
+    let metadata = file.metadata().map_err(|_| "文件不存在或无法访问")?;
+    if !metadata.is_file() {
+        return Err(BLOCKED.into());
+    }
+    if crate::platform::files::is_executable(&metadata) {
+        return Err(BLOCKED.into());
+    }
+    let mut header = Vec::new();
+    file.take(8)
+        .read_to_end(&mut header)
+        .map_err(|error| error.to_string())?;
+    let executable = header.starts_with(b"MZ")
+        || header.starts_with(b"\x7fELF")
+        || header.starts_with(b"#!")
+        || [
+            b"\xfe\xed\xfa\xce",
+            b"\xce\xfa\xed\xfe",
+            b"\xfe\xed\xfa\xcf",
+            b"\xcf\xfa\xed\xfe",
+            b"\xca\xfe\xba\xbe",
+            b"\xbe\xba\xfe\xca",
+            b"\xca\xfe\xba\xbf",
+            b"\xbf\xba\xfe\xca",
+        ]
+        .iter()
+        .any(|magic| header.starts_with(*magic));
+    if executable {
+        return Err(BLOCKED.into());
+    }
+    Ok(path)
 }
 
 #[tauri::command]
@@ -169,6 +310,86 @@ pub async fn reveal_file(path: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn default_app_opening_rejects_executables_scripts_shortcuts_and_disguised_binaries() {
+        let root = std::env::temp_dir().join(format!("codex-float-open-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        for name in [
+            "payload.EXE",
+            "a.cmd",
+            "a.bat",
+            "a.ps1",
+            "a.js",
+            "a.py",
+            "a.sh",
+            "a.lnk",
+            "a.url",
+            "a.desktop",
+            "a.app",
+            "a.pkg",
+            "a.msi",
+            "no-extension",
+        ] {
+            let file = root.join(name);
+            std::fs::write(&file, b"payload").unwrap();
+            assert!(
+                document_path(file.to_str().unwrap()).is_err(),
+                "accepted {name}"
+            );
+            std::fs::remove_file(file).unwrap();
+        }
+        for bytes in [
+            b"MZbinary".as_slice(),
+            b"\x7fELFbinary",
+            b"#!/bin/sh",
+            b"\xcf\xfa\xed\xfe",
+            b"\xca\xfe\xba\xbe",
+        ] {
+            let file = root.join("disguised.pdf");
+            std::fs::write(&file, bytes).unwrap();
+            assert!(document_path(file.to_str().unwrap()).is_err());
+            std::fs::remove_file(file).unwrap();
+        }
+        for (name, bytes) in [
+            ("readme.txt", b"text".as_slice()),
+            ("report.pdf", b"%PDF-1.7"),
+            ("image.png", b"\x89PNG"),
+        ] {
+            let file = root.join(name);
+            std::fs::write(&file, bytes).unwrap();
+            assert_eq!(
+                document_path(file.to_str().unwrap()).unwrap(),
+                file.canonicalize().unwrap()
+            );
+            std::fs::remove_file(file).unwrap();
+        }
+        let folder = root.join("folder.pdf");
+        std::fs::create_dir(&folder).unwrap();
+        assert!(document_path(folder.to_str().unwrap()).is_err());
+        std::fs::remove_dir(folder).unwrap();
+        std::fs::remove_dir(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolved_executables_and_executable_permission_bits_are_rejected() {
+        use std::os::unix::fs::{symlink, PermissionsExt};
+        let root = std::env::temp_dir().join(format!("codex-float-open-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        let binary = root.join("program.sh");
+        std::fs::write(&binary, b"exit 0").unwrap();
+        let link = root.join("innocent.txt");
+        symlink(&binary, &link).unwrap();
+        assert!(document_path(link.to_str().unwrap()).is_err());
+        std::fs::remove_file(link).unwrap();
+        std::fs::remove_file(binary).unwrap();
+        let file = root.join("executable.txt");
+        std::fs::write(&file, b"exit 0").unwrap();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(document_path(file.to_str().unwrap()).is_err());
+        std::fs::remove_file(file).unwrap();
+        std::fs::remove_dir(root).unwrap();
+    }
     #[test]
     fn native_file_actions_require_local_absolute_paths() {
         for path in [

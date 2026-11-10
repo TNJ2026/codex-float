@@ -3,6 +3,9 @@ name = "codex-float"
 version = "0.1.4"
 edition = "2021"
 
+[lints.clippy]
+all = "warn"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

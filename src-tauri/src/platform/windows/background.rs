@@ -113,11 +113,12 @@ pub fn set_system_acrylic(hwnd: HWND, enabled: bool) -> bool {
 fn set_accent(hwnd: HWND, state: u32, color: u32) -> bool {
     // Older Windows builds use the accent policy when DWM lacks Desktop Acrylic.
     unsafe {
-        let module = GetModuleHandleA(b"user32.dll\0".as_ptr());
+        let module = GetModuleHandleA(c"user32.dll".as_ptr().cast());
         if module.is_null() {
             return false;
         }
-        let Some(address) = GetProcAddress(module, b"SetWindowCompositionAttribute\0".as_ptr())
+        let Some(address) =
+            GetProcAddress(module, c"SetWindowCompositionAttribute".as_ptr().cast())
         else {
             return false;
         };

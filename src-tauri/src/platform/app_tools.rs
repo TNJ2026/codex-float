@@ -1,6 +1,8 @@
 //! Local App Tools transport for the currently disabled ChatGPT experiment.
 #[cfg(target_os = "windows")]
-pub async fn connect(endpoint: &str) -> Result<tokio::net::windows::named_pipe::NamedPipeClient, String> {
+pub async fn connect(
+    endpoint: &str,
+) -> Result<tokio::net::windows::named_pipe::NamedPipeClient, String> {
     if !endpoint.starts_with(r"\\.\pipe\") {
         return Err("App Tools 必须使用本地命名管道".into());
     }

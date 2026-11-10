@@ -1,8 +1,5 @@
 use crate::services::context::ContextItem;
 
-pub fn read_pages() -> Result<Vec<ContextItem>, String> {
-    read_pages_with_limit(32_000)
-}
 pub fn read_pages_with_limit(limit: usize) -> Result<Vec<ContextItem>, String> {
     let limit = limit.clamp(1000, 100_000);
     // Only running browsers are queried. No tab is navigated or activated.
