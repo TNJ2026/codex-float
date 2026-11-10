@@ -71,7 +71,8 @@ pub(super) fn connect_client(c: &super::client::Client, thread_id: &str) -> Resu
     c.unbind()?;
     *c.binding.lock().map_err(|_| "聊天连接不可用")? = Some((thread_id.to_string(), owner.clone()));
     if let Err(error) = c.load_history(thread_id, &owner, false) {
-        c.unbind()?;
+        // Keep the load failure as the user-facing error; an unbind failure would hide it.
+        let _ = c.unbind();
         return Err(error);
     }
     Ok(json!({"connected":true}))
