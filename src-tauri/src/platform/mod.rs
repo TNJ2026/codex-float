@@ -1,5 +1,7 @@
 //! Native OS boundaries. Chat protocol, previews and window state stay shared.
 pub(crate) mod files;
+#[cfg(any(target_os = "windows", test))]
+mod windows_path;
 // Retained for the disabled ChatGPT integration.
 #[allow(dead_code)]
 pub(crate) mod app_tools;

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{os::windows::ffi::OsStrExt, path::Path};
 
 pub fn open_url(url: &str) -> Result<(), String> {
     let operation: Vec<u16> = "open\0".encode_utf16().collect();
@@ -20,9 +20,8 @@ pub fn open_url(url: &str) -> Result<(), String> {
 }
 fn explorer_path(path: &Path) -> Result<Vec<u16>, String> {
     let canonical = path.canonicalize().map_err(|_| "文件不存在或无法访问")?;
-    let canonical = canonical.to_string_lossy();
-    let path = canonical.strip_prefix(r"\\?\").unwrap_or(&canonical);
-    Ok(path.encode_utf16().chain(Some(0)).collect())
+    let wide: Vec<u16> = canonical.as_os_str().encode_wide().collect();
+    Ok(crate::platform::windows_path::shell_path(&wide))
 }
 pub fn open_file(path: &Path) -> Result<(), String> {
     let operation: Vec<u16> = "open\0".encode_utf16().collect();
