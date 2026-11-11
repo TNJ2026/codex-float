@@ -103,9 +103,12 @@ export function useSessionConnection({ resetOptimistic }) {
       );
       off.push(
         await listen('codex-disconnected', ({ payload }) => {
+          // A failed switch keeps the previous chat bound in the backend; its
+          // disconnect must not replace the guidance for the chat on screen.
+          if (payload.conversationId !== boundRef.current) return;
           setStatus('offline');
           setNeedsOpen(false);
-          setError(payload);
+          setError(payload.message);
         }),
       );
       if (disposed) {

@@ -72,7 +72,7 @@ test('standalone startup discovers a live chat before connecting and preserves d
   assert.equal(document.querySelector('[role="combobox"]').disabled,true);
   await act(async()=>events.get('codex-stream')({payload:{conversationId:ids[2],change:{type:'snapshot',revision:1,conversationState:{turns:[]}}}}));
   assert.equal(document.querySelector('[role="combobox"]').disabled,true,'snapshot must not unlock selection before the connection request settles');
-  await act(async()=>events.get('codex-disconnected')({payload:'owner disconnected'}));
+  await act(async()=>events.get('codex-disconnected')({payload:{conversationId:ids[2],message:'owner disconnected'}}));
   assert.equal(document.querySelector('[role="combobox"]').disabled,true,'connection lock is independent of stream status');
   await act(async()=>finishConnect({connected:true}));
   assert.equal(document.querySelector('[role="combobox"]').disabled,false);
@@ -90,6 +90,11 @@ test('standalone startup discovers a live chat before connecting and preserves d
   assert.equal(document.querySelector('.empty-sync-button').textContent,'同步聊天');
   assert.equal(document.querySelector('.empty-sync-button').disabled,false);
   assert.equal(document.querySelector('[aria-label="发送提示词"]').disabled,true);
+  await act(async()=>events.get('codex-disconnected')({payload:{conversationId:ids[2],message:'聊天连接已关闭，请先在 Codex App 打开该对话，再点击同步。'}}));
+  assert.equal(document.querySelector('[role="alert"]'),null,'a disconnect for the previously bound chat is ignored');
+  assert.equal(document.querySelector('.empty h2').textContent,'请先在 Codex App 打开此对话');
+  await act(async()=>events.get('codex-disconnected')({payload:{conversationId:null,message:'Codex 连接已断开，请重新连接'}}));
+  assert.equal(document.querySelector('.empty h2').textContent,'请先在 Codex App 打开此对话','an unbound connection loss keeps the instruction');
   await act(async()=>document.querySelector('.empty-sync-button').click());
   assert.equal(document.querySelector('.empty h2').textContent,'请先在 Codex App 打开此对话','retry before opening the chat keeps the centered instruction visible');
   assert.equal(document.querySelector('[role="alert"]'),null);

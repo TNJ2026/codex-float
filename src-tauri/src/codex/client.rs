@@ -128,12 +128,16 @@ impl Client {
                         let Ok(binding) = c.bound() else {
                             break;
                         };
-                        let owner = binding.map(|b| b.1);
-                        if owner.as_deref() == msg["params"]["clientId"].as_str() {
-                            let _ = app.emit(
-                                "codex-disconnected",
-                                "聊天连接已关闭，请先在 Codex App 打开该对话，再点击同步。",
-                            );
+                        if let Some((conversation_id, owner)) = binding {
+                            if Some(owner.as_str()) == msg["params"]["clientId"].as_str() {
+                                let _ = app.emit(
+                                    "codex-disconnected",
+                                    json!({
+                                        "conversationId": conversation_id,
+                                        "message": "聊天连接已关闭，请先在 Codex App 打开该对话，再点击同步。",
+                                    }),
+                                );
+                            }
                         }
                     }
                     _ => {}
@@ -146,7 +150,13 @@ impl Client {
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
                 .clear();
-            let _ = app.emit("codex-disconnected", "Codex 连接已断开，请重新连接");
+            // The UI ignores events for a chat it no longer shows, e.g. after a
+            // failed switch left the previous chat bound in the backend.
+            let conversation_id = c.bound().ok().flatten().map(|b| b.0);
+            let _ = app.emit(
+                "codex-disconnected",
+                json!({"conversationId": conversation_id, "message": "Codex 连接已断开，请重新连接"}),
+            );
         })));
         ready_rx
             .recv_timeout(Duration::from_secs(5))

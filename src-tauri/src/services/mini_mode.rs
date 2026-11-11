@@ -36,6 +36,26 @@ fn restored_content_bounds(
     (size, position)
 }
 
+/// Keeps restored content inside the monitor work area. The window is anchored
+/// to the ball's right edge, so a ball near the left edge would otherwise push
+/// the window off screen. Oversized windows align to the work area's top-left.
+#[cfg(any(target_os = "windows", test))]
+fn clamp_to_work_area(
+    position: PhysicalPosition<i32>,
+    size: PhysicalSize<u32>,
+    area_position: PhysicalPosition<i32>,
+    area_size: PhysicalSize<u32>,
+) -> PhysicalPosition<i32> {
+    let clamp = |value: i32, length: u32, start: i32, available: u32| {
+        let end = start.saturating_add(available as i32 - length as i32);
+        value.min(end).max(start)
+    };
+    PhysicalPosition::new(
+        clamp(position.x, size.width, area_position.x, area_size.width),
+        clamp(position.y, size.height, area_position.y, area_size.height),
+    )
+}
+
 #[cfg(any(target_os = "windows", test))]
 fn restored_outer_position(
     content_position: PhysicalPosition<i32>,
@@ -221,6 +241,15 @@ pub async fn set_mini_mode(window: WebviewWindow, compact: bool) -> Result<bool,
                         ball_position,
                         ball_size,
                     );
+                    if let Some(monitor) = handle.current_monitor()? {
+                        let area = monitor.work_area();
+                        normal.content_position = clamp_to_work_area(
+                            normal.content_position,
+                            normal.size,
+                            area.position,
+                            area.size,
+                        );
+                    }
                     normal.scale = scale;
                     normal
                 } else {
@@ -273,6 +302,31 @@ mod tests {
             assert_eq!(content.x + size.width as i32, anchor.x + ball.width as i32);
             assert_eq!(content.y, anchor.y);
         }
+    }
+
+    #[test]
+    fn restored_window_stays_inside_the_work_area() {
+        // Secondary monitor to the left of the primary, with a taskbar at the bottom.
+        let area = PhysicalPosition::new(-1920, 0);
+        let area_size = PhysicalSize::new(1920, 1040);
+        let size = PhysicalSize::new(900, 1440);
+        let clamp = |x, y| clamp_to_work_area(PhysicalPosition::new(x, y), size, area, area_size);
+        // A ball at the left edge would push the window past the left edge.
+        assert_eq!(clamp(-2700, 100).x, -1920);
+        // Past the right and bottom edges, pull it back fully into view.
+        assert_eq!(clamp(-500, 100).x, -900);
+        let short = PhysicalSize::new(900, 700);
+        assert_eq!(
+            clamp_to_work_area(PhysicalPosition::new(-1500, 900), short, area, area_size),
+            PhysicalPosition::new(-1500, 340)
+        );
+        // A window taller than the work area aligns to its top.
+        assert_eq!(clamp(-1500, 400).y, 0);
+        // Positions already in view are unchanged.
+        assert_eq!(
+            clamp_to_work_area(PhysicalPosition::new(-1500, 100), short, area, area_size),
+            PhysicalPosition::new(-1500, 100)
+        );
     }
 
     #[test]

@@ -71,7 +71,7 @@ test('language switches update the interface without replacing drafts or convers
    document.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
    events.get('windows-caption-action')({payload:'settings'});
   });
-  await act(async()=>events.get('codex-disconnected')({payload:'连接 Codex 超时'}));
+  await act(async()=>events.get('codex-disconnected')({payload:{conversationId:state.id,message:'连接 Codex 超时'}}));
   assert.equal(document.querySelector('[role="alert"]').textContent,'Timed out connecting to Codex');
   await changeLanguage('zh-CN');
   assert.equal(document.querySelector('[role="alert"]').textContent,'连接 Codex 超时');

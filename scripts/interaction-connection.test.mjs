@@ -35,7 +35,7 @@ test('interaction confirmation sees disconnects during the RPC and during confir
    await act(async()=>button.click());
    assert.equal(replies,1);
    await act(async()=>{
-    events.get('codex-disconnected')({payload:'connection lost'});
+    events.get('codex-disconnected')({payload:{conversationId:threadId,message:'connection lost'}});
     finishReply?.({});
     await new Promise(resolve=>setTimeout(resolve,150));
    });

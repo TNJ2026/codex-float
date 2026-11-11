@@ -20,12 +20,13 @@ fn internal_thread_ids(home: &Path) -> rusqlite::Result<HashSet<String>> {
     db.busy_timeout(std::time::Duration::from_millis(200))?;
     let mut query = db.prepare("SELECT id, source FROM threads")?;
     let rows = query.query_map([], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
     })?;
     let mut internal = HashSet::new();
     for row in rows {
+        // A NULL source is an ordinary chat; it must not disable filtering for every row.
         let (id, source) = row?;
-        if is_internal_source(&source) {
+        if source.as_deref().is_some_and(is_internal_source) {
             internal.insert(id);
         }
     }
@@ -51,12 +52,21 @@ fn read_indexed_threads(home: &Path, limit: usize) -> Result<Vec<Value>, String>
     // The session index includes internal reviews and spawned agents that are not
     // user chats. Filter by source, never by the user-editable title, before limiting.
     // Keep the legacy index available if the desktop database cannot be read.
-    if let Ok(internal) = internal_thread_ids(home) {
-        threads.retain(|thread| {
+    match internal_thread_ids(home) {
+        Ok(internal) => threads.retain(|thread| {
             !thread["id"]
                 .as_str()
                 .is_some_and(|id| internal.contains(id))
-        });
+        }),
+        // A missing database is expected on older Codex installs. Any other failure
+        // (renamed schema, new database version) silently re-exposes internal chats,
+        // so surface it in the log.
+        Err(error) if home.join("state_5.sqlite").exists() => {
+            eprintln!(
+                "codex-float: unable to filter internal chats from state_5.sqlite: {error}"
+            );
+        }
+        Err(_) => {}
     }
     threads.sort_by(|a, b| b["updated_at"].as_str().cmp(&a["updated_at"].as_str()));
     threads.truncate(limit);
@@ -134,8 +144,10 @@ mod tests {
                 db.execute("INSERT INTO threads VALUES(?1, ?2)", [id, source])
                     .unwrap();
             }
+            db.execute("INSERT INTO threads VALUES('legacy', NULL)", []).unwrap();
         }
         let entries = [
+            json!({"id":"legacy","thread_name":"Legacy","updated_at":"2025-12-31"}),
             json!({"id":"normal","thread_name":"Chat","updated_at":"2026-01-01"}),
             json!({"id":"named","thread_name":"Guardian review","updated_at":"2026-01-02"}),
             json!({"id":"spawn","thread_name":"Agent","updated_at":"2026-01-03"}),
@@ -151,22 +163,25 @@ mod tests {
         )
         .unwrap();
         let before = std::fs::read(&db_path).unwrap();
-        for limit in [2, usize::MAX] {
-            let threads = read_indexed_threads(&home, limit).unwrap();
-            assert_eq!(
-                threads
-                    .iter()
-                    .map(|t| t["id"].as_str().unwrap())
-                    .collect::<Vec<_>>(),
-                ["named", "normal"]
-            );
-        }
+        let ids = |limit| {
+            read_indexed_threads(&home, limit)
+                .unwrap()
+                .iter()
+                .map(|t| t["id"].as_str().unwrap().to_string())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(ids(2), ["named", "normal"]);
+        assert_eq!(
+            ids(usize::MAX),
+            ["named", "normal", "legacy"],
+            "a NULL source is kept and does not disable filtering"
+        );
         assert_eq!(read_indexed_threads(&home, 1).unwrap()[0]["id"], "named");
         assert_eq!(std::fs::read(&db_path).unwrap(), before);
 
         // Missing databases preserve the old index path and are never created.
         std::fs::remove_file(&db_path).unwrap();
-        assert_eq!(read_indexed_threads(&home, usize::MAX).unwrap().len(), 4);
+        assert_eq!(read_indexed_threads(&home, usize::MAX).unwrap().len(), 5);
         assert!(!db_path.exists());
         std::fs::remove_dir_all(home).unwrap();
     }
