@@ -132,7 +132,7 @@ impl Client {
                         if owner.as_deref() == msg["params"]["clientId"].as_str() {
                             let _ = app.emit(
                                 "codex-disconnected",
-                                "聊天连接已关闭，请点击同步重新打开并连接",
+                                "聊天连接已关闭，请先在 Codex App 打开该对话，再点击同步。",
                             );
                         }
                     }
@@ -348,6 +348,33 @@ pub(crate) fn shutdown(app: &tauri::AppHandle) {
 mod history_tests {
     use super::*;
 
+    #[test]
+    fn unloaded_chat_reports_manual_open_instruction_without_retrying_or_rebinding() {
+        let (client, mut outgoing) = test_client();
+        *client.binding.lock().unwrap() = Some(("previous".into(), "owner".into()));
+        std::thread::scope(|scope| {
+            let worker =
+                scope.spawn(|| super::super::commands::connect_client(&client, "unloaded"));
+            let discovery = outgoing.blocking_recv().unwrap();
+            assert_eq!(discovery["method"], "thread-owner-discovery");
+            reply(
+                &client,
+                &discovery,
+                json!({"resultType":"error","error":"no-client-found"}),
+            );
+            let error = worker.join().unwrap().unwrap_err();
+            assert_eq!(error, "chat-not-loaded");
+        });
+        assert!(
+            outgoing.try_recv().is_err(),
+            "no retries, history loads or follow changes for an unloaded chat"
+        );
+        assert_eq!(
+            *client.binding.lock().unwrap(),
+            Some(("previous".into(), "owner".into()))
+        );
+    }
+
     fn poison<T: Send>(mutex: &Mutex<T>) {
         std::thread::scope(|scope| {
             assert!(scope
@@ -365,15 +392,14 @@ mod history_tests {
         let (client, mut outgoing) = test_client();
         poison(&client.connecting);
         assert_eq!(
-            super::super::commands::connect_client(&client, "thread", false),
+            super::super::commands::connect_client(&client, "thread"),
             Err("聊天连接不可用".into())
         );
         assert!(outgoing.try_recv().is_err());
 
         let (client, mut outgoing) = test_client();
         std::thread::scope(|scope| {
-            let worker =
-                scope.spawn(|| super::super::commands::connect_client(&client, "thread", false));
+            let worker = scope.spawn(|| super::super::commands::connect_client(&client, "thread"));
             let discovery = outgoing.blocking_recv().unwrap();
             poison(&client.binding);
             reply(
@@ -581,8 +607,8 @@ mod history_tests {
                 });
                 let next = || messages_rx.recv_timeout(Duration::from_secs(5)).unwrap();
                 std::thread::scope(|scope| {
-                    let first = scope
-                        .spawn(|| super::super::commands::connect_client(&client, "first", false));
+                    let first =
+                        scope.spawn(|| super::super::commands::connect_client(&client, "first"));
                     let discovery = next();
                     assert_eq!(discovery["method"], "thread-owner-discovery");
                     reply(
@@ -598,7 +624,7 @@ mod history_tests {
                     let client_ref = &client;
                     let second = scope.spawn(move || {
                         started_tx.send(()).unwrap();
-                        super::super::commands::connect_client(client_ref, second_thread, false)
+                        super::super::commands::connect_client(client_ref, second_thread)
                     });
                     started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
                     assert!(messages_rx

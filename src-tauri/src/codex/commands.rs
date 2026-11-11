@@ -26,74 +26,48 @@ pub async fn find_running_thread(
 }
 
 #[tauri::command]
-pub async fn connect_thread(
-    app: tauri::AppHandle,
-    thread_id: String,
-    open_if_needed: Option<bool>,
-) -> Result<Value, String> {
+pub async fn connect_thread(app: tauri::AppHandle, thread_id: String) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         uuid::Uuid::parse_str(&thread_id).map_err(|_| "聊天 ID 格式不正确".to_string())?;
         let c = get_client(&app)?;
-        connect_client(&c, &thread_id, open_if_needed.unwrap_or(false))
+        connect_client(&c, &thread_id)
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-pub(super) fn connect_client(
-    c: &super::client::Client,
-    thread_id: &str,
-    open_if_needed: bool,
-) -> Result<Value, String> {
+pub(super) fn connect_client(c: &super::client::Client, thread_id: &str) -> Result<Value, String> {
     // Keep discovery, binding changes and failure cleanup in one transaction.
     // This lock is independent of Bridge's slot and is never taken by shutdown.
     let _connecting = c.connecting.lock().map_err(|_| "聊天连接不可用")?;
-    let mut retry_deadline = None;
-    let owner = super::discovery::owner_for_connection(
-        thread_id,
-        open_if_needed,
-        |id| {
-            let response = c.rpc(
-                "thread-owner-discovery",
-                json!({"hostId":"local","conversationId":id}),
-                1,
-                None,
-            )?;
+    let owner = c
+        .rpc(
+            "thread-owner-discovery",
+            json!({"hostId":"local","conversationId":thread_id}),
+            1,
+            None,
+        )
+        .and_then(|response| {
             response["handledByClientId"]
                 .as_str()
                 .map(str::to_owned)
                 .ok_or_else(|| "未找到聊天所有者".into())
-        },
-        |id| crate::platform::shell::open_url(&format!("codex://threads/{id}")),
-        || {
-            let deadline = *retry_deadline.get_or_insert_with(|| {
-                std::time::Instant::now() + std::time::Duration::from_secs(8)
-            });
-            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-            if remaining.is_zero() {
-                return false;
-            }
-            std::thread::sleep(remaining.min(std::time::Duration::from_millis(250)));
-            std::time::Instant::now() < deadline
-        },
-    )
-    .map_err(|error| {
-        if error == "no-client-found" {
-            crate::services::ui_language::text(
-                "该聊天尚未加载，点击同步即可打开并连接",
-                "This chat is not loaded. Click Sync to open and connect it.",
-            )
-            .to_string()
-        } else {
-            format!(
-                "{}: {error}",
-                crate::services::ui_language::text(
-                    "查找聊天运行实例失败",
-                    "Could not discover the chat owner",
+        })
+        .map_err(|error| {
+            if error == "no-client-found" {
+                // A stable code lets the UI render this as an empty state instead
+                // of treating a missing owner as a generic error notification.
+                "chat-not-loaded".to_string()
+            } else {
+                format!(
+                    "{}: {error}",
+                    crate::services::ui_language::text(
+                        "查找聊天运行实例失败",
+                        "Could not discover the chat owner",
+                    )
                 )
-            )
-        }
-    })?;
+            }
+        })?;
     c.unbind()?;
     *c.binding.lock().map_err(|_| "聊天连接不可用")? = Some((thread_id.to_string(), owner.clone()));
     if let Err(error) = c.load_history(thread_id, &owner, false) {

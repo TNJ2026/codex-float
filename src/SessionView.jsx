@@ -97,6 +97,7 @@ export function SessionView({
     conversation,
     setConversation,
     connectionPending,
+    needsOpen,
     live,
     selectedRef,
     boundRef,
@@ -877,7 +878,7 @@ export function SessionView({
                   selectedRef.current = id;
                   setSelected(id);
                   setFollow(true);
-                  connect(id, { openIfNeeded: true });
+                  connect(id);
                 }}
               />
               <button
@@ -938,11 +939,21 @@ export function SessionView({
                 <div className="empty-mark">
                   <MessageSquare size={28} />
                 </div>
-                <h2>{status === 'connecting' ? t('正在同步对话') : t('让对话留在手边')}</h2>
+                <h2>
+                  {status === 'connecting'
+                    ? t('正在同步对话')
+                    : needsOpen
+                      ? t('请先在 Codex App 打开此对话')
+                      : t('让对话留在手边')}
+                </h2>
                 <p>
-                  {t('选择已有聊天并点击同步，')}
+                  {needsOpen
+                    ? t('在 Codex App 中打开这个对话一次，')
+                    : t('选择已有聊天并点击同步，')}
                   <br />
-                  {t('连接后即可在这里继续对话。')}
+                  {needsOpen
+                    ? t('然后回到这里点击下方的“同步聊天”。')
+                    : t('连接后即可在这里继续对话。')}
                 </p>
                 {status !== 'live' && (
                   <button

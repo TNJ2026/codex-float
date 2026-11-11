@@ -12,6 +12,7 @@ export function useSessionConnection({ resetOptimistic }) {
     [error, setError] = useState(''),
     [conversation, setConversation] = useState(null);
   const [connectionPending, setConnectionPending] = useState(false);
+  const [needsOpen, setNeedsOpen] = useState(false);
   const statusRef = useRef('offline');
   const setStatus = useCallback((next) => {
     statusRef.current = next;
@@ -36,27 +37,30 @@ export function useSessionConnection({ resetOptimistic }) {
   }
   async function syncCurrentThread() {
     await refresh();
-    await connect(selectedRef.current, { openIfNeeded: true });
+    await connect(selectedRef.current);
   }
-  async function connect(id = selectedRef.current, { openIfNeeded = false } = {}) {
+  async function connect(id = selectedRef.current) {
     if (!id || connecting.current) return;
     if (id !== boundRef.current) resetOptimistic([]);
     connecting.current = true;
     setConnectionPending(true);
     boundRef.current = id;
     setStatus('connecting');
+    setNeedsOpen(false);
     setError('');
     live.current = { state: null, revision: null };
     setConversation(null);
     try {
-      await invoke('connect_thread', { threadId: id, openIfNeeded });
+      await invoke('connect_thread', { threadId: id });
       setStatus('live');
       setError('');
       localStorage.setItem('codex-float-thread', id);
       return true;
     } catch (e) {
       setStatus('offline');
-      setError(String(e));
+      const unloaded = String(e).replace(/^Error:\s*/, '') === 'chat-not-loaded';
+      setNeedsOpen(unloaded);
+      setError(unloaded ? '' : String(e));
       return false;
     } finally {
       connecting.current = false;
@@ -76,7 +80,10 @@ export function useSessionConnection({ resetOptimistic }) {
           if (payload.conversationId !== boundRef.current) return;
           try {
             live.current = applyChange(live.current.state, live.current.revision, payload.change);
-            if (!connecting.current) setStatus('live');
+            if (!connecting.current) {
+              setStatus('live');
+              setNeedsOpen(false);
+            }
             if (!schedule.current)
               schedule.current = setTimeout(() => {
                 startTransition(() => setConversation(live.current.state));
@@ -97,6 +104,7 @@ export function useSessionConnection({ resetOptimistic }) {
       off.push(
         await listen('codex-disconnected', ({ payload }) => {
           setStatus('offline');
+          setNeedsOpen(false);
           setError(payload);
         }),
       );
@@ -151,6 +159,7 @@ export function useSessionConnection({ resetOptimistic }) {
     conversation,
     setConversation,
     connectionPending,
+    needsOpen,
     live,
     selectedRef,
     boundRef,

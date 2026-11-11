@@ -1,6 +1,9 @@
 import backendErrors from './backend-en.js';
 
 export default {
+  '请先在 Codex App 打开此对话': 'Open this chat in the Codex app first',
+  '在 Codex App 中打开这个对话一次，': 'Open this chat once in the Codex app,',
+  '然后回到这里点击下方的“同步聊天”。': 'then return here and click Sync chat below.',
   '选择已有聊天并点击同步，': 'Select an existing chat and sync it,',
   打开附件缓存文件夹: 'Open attachment cache folder',
   '缓存上限为 512 MiB。删除不再需要的文件后即可继续粘贴，无需重启；历史消息中的对应图片将无法预览。':

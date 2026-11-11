@@ -9,7 +9,7 @@ test('standalone startup discovers a live chat before connecting and preserves d
  const keys=['window','document','localStorage','requestAnimationFrame','IS_REACT_ACT_ENVIRONMENT'],previous=keys.map(key=>globalThis[key]);
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,localStorage:dom.window.localStorage,requestAnimationFrame:fn=>setTimeout(fn,0),IS_REACT_ACT_ENVIRONMENT:true});
  const ids=[1,2,3].map(n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`);
- let failure=false,inherited=false,finishDiscovery,delayConnect=false,finishConnect;
+ let failure=false,inherited=false,finishDiscovery,delayConnect=false,finishConnect,unloaded=false;
  dom.window.HTMLElement.prototype.scrollIntoView=function(){};
  const calls=[],callbacks=new Map(),events=new Map();
  let nativePageFocused=false;
@@ -24,7 +24,10 @@ test('standalone startup discovers a live chat before connecting and preserves d
    if(failure)throw 'connection reset during discovery';
    return new Promise(resolve=>{finishDiscovery=resolve;});
   }
-  if(cmd==='connect_thread')return delayConnect?new Promise(resolve=>{finishConnect=resolve;}):{connected:true};
+  if(cmd==='connect_thread'){
+   if(unloaded&&args.threadId===ids[0])throw 'chat-not-loaded';
+   return delayConnect?new Promise(resolve=>{finishConnect=resolve;}):{connected:true};
+  }
   if(cmd==='read_usage')return {};
  }};
  const vite=await createServer({configFile:false,optimizeDeps:{noDiscovery:true,include:[]},server:{middlewareMode:true,hmr:false,ws:false,watch:null},appType:'custom'});
@@ -53,7 +56,7 @@ test('standalone startup discovers a live chat before connecting and preserves d
   await act(async()=>finishDiscovery(ids[2]));
   assert.equal(document.activeElement,attachmentButton,'background connection updates must not steal focus back to the composer');
   assert.equal(calls.find(call=>call.cmd==='connect_thread').args.threadId,ids[2]);
-  assert.equal(calls.find(call=>call.cmd==='connect_thread').args.openIfNeeded,false,'background startup does not launch chat windows');
+  assert.deepEqual(calls.find(call=>call.cmd==='connect_thread').args,{threadId:ids[2]},'connections only discover an existing owner');
   assert.equal(localStorage.getItem('codex-float-thread'),ids[2]);
   assert.equal(document.querySelector('[role="alert"]'),null);
   await act(async()=>root.unmount());calls.length=0;failure=true;
@@ -73,15 +76,30 @@ test('standalone startup discovers a live chat before connecting and preserves d
   assert.equal(document.querySelector('[role="combobox"]').disabled,true,'connection lock is independent of stream status');
   await act(async()=>finishConnect({connected:true}));
   assert.equal(document.querySelector('[role="combobox"]').disabled,false);
-  delayConnect=false;
+  delayConnect=false;unloaded=true;
   await act(async()=>document.querySelector('[role="combobox"]').click());
   await act(async()=>document.querySelector('[data-option-index="0"]').click());
   assert.equal(document.querySelector('.thread-selection').textContent,'Chat 0');
   assert.deepEqual(calls.filter(call=>call.cmd==='connect_thread').map(call=>call.args.threadId),[ids[2],ids[0]]);
+  assert.equal(localStorage.getItem('codex-float-thread'),ids[2],'failed connections do not replace the last connected chat');
+  assert.equal(document.querySelector('[role="alert"]'),null,'unloaded chats are an empty state, not an error notice');
+  assert.equal(document.querySelector('[role="dialog"]'),null);
+  assert.equal(document.querySelector('.empty h2').textContent,'请先在 Codex App 打开此对话');
+  assert.match(document.querySelector('.empty p').textContent,/在 Codex App 中打开这个对话一次/);
+  assert.equal(document.querySelector('.empty').textContent.includes('让对话留在手边'),false);
+  assert.equal(document.querySelector('.empty-sync-button').textContent,'同步聊天');
+  assert.equal(document.querySelector('.empty-sync-button').disabled,false);
+  assert.equal(document.querySelector('[aria-label="发送提示词"]').disabled,true);
+  await act(async()=>document.querySelector('.empty-sync-button').click());
+  assert.equal(document.querySelector('.empty h2').textContent,'请先在 Codex App 打开此对话','retry before opening the chat keeps the centered instruction visible');
+  assert.equal(document.querySelector('[role="alert"]'),null);
+  assert.ok(calls.filter(call=>call.cmd==='connect_thread').every(call=>!('openIfNeeded' in call.args)));
+  assert.equal(calls.some(call=>call.cmd==='open_url'),false,'selection and sync must never open the main app');
+  unloaded=false;
+  await act(async()=>document.querySelector('.empty-sync-button').click());
+  assert.equal(document.querySelector('[role="alert"]'),null,'sync works after the user opens the chat in Codex');
   assert.equal(localStorage.getItem('codex-float-thread'),ids[0]);
-  assert.equal(calls.filter(call=>call.cmd==='connect_thread').at(-1).args.openIfNeeded,true,'explicit selection can open an unloaded chat');
-  await act(async()=>document.querySelector('.sync-button').click());
-  assert.equal(calls.filter(call=>call.cmd==='connect_thread').at(-1).args.openIfNeeded,true,'explicit sync can also open an unloaded chat');
+  assert.equal(document.querySelector('.empty h2').textContent,'让对话留在手边','successful connection clears the unloaded-chat instruction');
   await act(async()=>root.unmount());
   window.__CODEX_FLOAT_PLATFORM__='windows';
   const macFocusCalls=calls.filter(call=>call.cmd==='focus_composer').length;
