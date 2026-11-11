@@ -164,50 +164,6 @@ pub fn titlebar_height(window: &WebviewWindow) -> f64 {
     super::toolbar::height(window)
 }
 
-#[cfg(test)]
-mod space_tests {
-    use super::*;
-
-    #[test]
-    fn keyboard_focus_keeps_pinning_but_releases_system_ui_levels() {
-        let interactive = pinned_window_level(true, true);
-        let background = pinned_window_level(true, false);
-        assert!(interactive > NSNormalWindowLevel);
-        assert!(interactive < background);
-        assert_eq!(interactive, NSFloatingWindowLevel);
-        assert_eq!(background, NSPopUpMenuWindowLevel);
-        assert_eq!(pinned_window_level(false, true), NSNormalWindowLevel);
-        assert_eq!(pinned_window_level(false, false), NSNormalWindowLevel);
-    }
-
-    #[test]
-    fn fullscreen_overlay_preserves_other_policies_without_conflicting_space_modes() {
-        for mode in [
-            NSWindowCollectionBehavior::FullScreenPrimary,
-            NSWindowCollectionBehavior::FullScreenNone,
-            NSWindowCollectionBehavior::Primary,
-            NSWindowCollectionBehavior::Auxiliary,
-        ] {
-            let current = mode
-                | NSWindowCollectionBehavior::MoveToActiveSpace
-                | NSWindowCollectionBehavior::IgnoresCycle;
-            let result = floating_collection_behavior(current);
-            assert!(result.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
-            assert!(result.contains(NSWindowCollectionBehavior::FullScreenAuxiliary));
-            assert!(result.contains(NSWindowCollectionBehavior::CanJoinAllApplications));
-            assert!(result.contains(NSWindowCollectionBehavior::IgnoresCycle));
-            assert!(!result.intersects(
-                NSWindowCollectionBehavior::MoveToActiveSpace
-                    | NSWindowCollectionBehavior::FullScreenPrimary
-                    | NSWindowCollectionBehavior::FullScreenNone
-                    | NSWindowCollectionBehavior::Primary
-                    | NSWindowCollectionBehavior::Auxiliary
-            ));
-            assert_eq!(floating_collection_behavior(result), result);
-        }
-    }
-}
-
 fn native_controls(window: &WebviewWindow, hidden: bool) -> Result<(), String> {
     let _main = MainThreadMarker::new().ok_or("窗口按钮必须在主线程更新")?;
     let pointer = window.ns_window().map_err(|error| error.to_string())?;
@@ -345,4 +301,48 @@ pub fn animate_bounds(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod space_tests {
+    use super::*;
+
+    #[test]
+    fn keyboard_focus_keeps_pinning_but_releases_system_ui_levels() {
+        let interactive = pinned_window_level(true, true);
+        let background = pinned_window_level(true, false);
+        assert!(interactive > NSNormalWindowLevel);
+        assert!(interactive < background);
+        assert_eq!(interactive, NSFloatingWindowLevel);
+        assert_eq!(background, NSPopUpMenuWindowLevel);
+        assert_eq!(pinned_window_level(false, true), NSNormalWindowLevel);
+        assert_eq!(pinned_window_level(false, false), NSNormalWindowLevel);
+    }
+
+    #[test]
+    fn fullscreen_overlay_preserves_other_policies_without_conflicting_space_modes() {
+        for mode in [
+            NSWindowCollectionBehavior::FullScreenPrimary,
+            NSWindowCollectionBehavior::FullScreenNone,
+            NSWindowCollectionBehavior::Primary,
+            NSWindowCollectionBehavior::Auxiliary,
+        ] {
+            let current = mode
+                | NSWindowCollectionBehavior::MoveToActiveSpace
+                | NSWindowCollectionBehavior::IgnoresCycle;
+            let result = floating_collection_behavior(current);
+            assert!(result.contains(NSWindowCollectionBehavior::CanJoinAllSpaces));
+            assert!(result.contains(NSWindowCollectionBehavior::FullScreenAuxiliary));
+            assert!(result.contains(NSWindowCollectionBehavior::CanJoinAllApplications));
+            assert!(result.contains(NSWindowCollectionBehavior::IgnoresCycle));
+            assert!(!result.intersects(
+                NSWindowCollectionBehavior::MoveToActiveSpace
+                    | NSWindowCollectionBehavior::FullScreenPrimary
+                    | NSWindowCollectionBehavior::FullScreenNone
+                    | NSWindowCollectionBehavior::Primary
+                    | NSWindowCollectionBehavior::Auxiliary
+            ));
+            assert_eq!(floating_collection_behavior(result), result);
+        }
+    }
 }

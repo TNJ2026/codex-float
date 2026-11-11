@@ -158,7 +158,7 @@ fn perform(app: &tauri::AppHandle, action: &str) {
                     if let Some((_, delegate)) = slot.borrow().as_ref() {
                         for item in delegate.ivars().actions.borrow().iter() {
                             if item.itemIdentifier().to_string() == "float.pin" {
-                                pin_item(&item, pinned);
+                                pin_item(item, pinned);
                             }
                         }
                     }
@@ -443,7 +443,7 @@ pub fn refresh_language(window: &WebviewWindow) {
             for item in delegate.ivars().actions.borrow().iter() {
                 let identifier = item.itemIdentifier().to_string();
                 if identifier == "float.pin" {
-                    pin_item(&item, super::window::is_pinned(&window).unwrap_or(false));
+                    pin_item(item, super::window::is_pinned(window).unwrap_or(false));
                     continue;
                 }
                 let label = match identifier.as_str() {

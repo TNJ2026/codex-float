@@ -1,4 +1,5 @@
 use serde_json::{json, Value};
+#[cfg(target_os = "windows")]
 use tauri::Manager;
 
 #[tauri::command]
