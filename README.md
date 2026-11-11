@@ -6,7 +6,7 @@ English | [简体中文](README.zh-CN.md)
 
 A compact, always-on-top chat window for your existing local chats in the Codex desktop app. Built with Tauri, React, and Rust.
 
-Windows has been tested locally. macOS has been verified on Apple Silicon through live and simulated checks. See the [macOS acceptance record](docs/macos.md) for coverage. The interface is currently in Simplified Chinese.
+Windows has been tested locally. macOS has been verified on Apple Silicon through live and simulated checks. See the [macOS acceptance record](docs/macos.md) for coverage. The interface supports Simplified Chinese and English, selectable in Settings.
 
 ## Features
 
@@ -14,10 +14,12 @@ Windows has been tested locally. macOS has been verified on Apple Silicon throug
 | --- | --- |
 | Browser context | Browser context reads accessible text from the active tab in each supported window (default limit of 32,000 characters; read counts and truncation are displayed). Added browser contexts follow tab changes about every two seconds and remain attached for subsequent messages. Pause to freeze a snapshot, or remove to stop following. Updates apply to future sends, not past messages. On macOS, body extraction requires the browser's automation JavaScript permission; otherwise only URL metadata is available. |
 | Composer predictions | Independent composer predictions suggest a follow-up after a new reply finishes. Tab accepts an editable draft; Esc dismisses it. Typing or changing chats cancels pending predictions. Off by default; enable in Settings. Uses the current model and additional quota, not the official free predictions service. Only recent visible chat text is included; attachments and tool outputs are excluded. Connecting to existing history does not generate a prediction. |
-| Chat sync and tasks | Live chat history and task status; send prompts, add instructions, and stop tasks. |
+| Chat sync and tasks | Live chat history and task status; send prompts, add instructions, and stop tasks. Chat lists and other-conversation context exclude internal reviews and subagent chats. If the local state database cannot be read, the original index is used and internal chats may remain visible. |
 | Attachments | Use the paperclip, drag files in, or paste images and copied files. See attachment limits below. |
 | Add context | Add file, folder, snippet, browser, IDE, skill, plugin and other-conversation context from the composer’s + button. Search within the selected category, open the snippet editor from Snippet, or add a URL manually from Browser. Use `@` to search context and `$` to search skills; choose with arrow keys and Enter or Tab. Context chips can be removed before sending. |
 | Rich messages and diffs | Markdown, images, syntax highlighting, file previews, and per-task file changes with diffs. Audio/video players, citation markers, source cards and attachment cards use the actual synchronized resources. |
+| Image zoom | Open an image preview to zoom with the mouse wheel or pinch gestures, drag to pan, and switch between actual size and fit to window, up to 800%. Use `+` / `-` to zoom, `0` to fit, `1` for actual size, or double-click to switch between fit and actual size. |
+| Open with default app | Right-click file links, attachments, images or audio/video and choose Open with default app to open supported local files using their system file associations. Programs, scripts and unknown types require inspection and manual opening in the file manager. |
 | Math and charts | LaTeX math supports `$…$`, `$$…$$`, `\(…\)`, `\[…\]` and `math`/`latex` fences. `mermaid` fences render diagrams; `echarts`/`chart` fences render interactive ECharts JSON options. |
 | HTML previews | HTML fences and complete HTML documents offer an isolated preview with expansion that preserves page state. HTTPS resources are supported; local relative resources need accessible URLs. Media playback depends on resource access and browser codec support. |
 | Approvals and usage | In-chat approvals and questions, plus account usage indicators. |
@@ -32,9 +34,9 @@ Windows has been tested locally. macOS has been verified on Apple Silicon throug
 | Copy and edit messages | Copy message source text or individual code blocks with dedicated buttons. Original user messages can be edited and resent with their attachments preserved. During a task, submitting an edit stops the active turn before regenerating subsequent content. Reasoning summaries are hidden in the transcript, while plans and subagent cards remain visible. |
 | Planning mode | Use `/plan` to switch to planning and `/agent` to return to execution. Changes take effect on the next turn. |
 | Fork a chat | Completed rounds offer a hover-visible fork action beside the user message and final reply. Forks include that round and earlier history, preserve the original chat and unsent composer content, and open in the main app before connecting. Connection retries reuse the created fork. Chat forks share the working directory and do not isolate workspace files. |
-| Themes and appearance | Light and dark themes. Background controls depend on the active platform material. |
+| Themes and appearance | Simplified Chinese and English interface options, plus light and dark themes. Background controls depend on the active platform material. |
 | Floating status ball | A compact floating status ball that restores the chat when clicked. |
-| Permission status | The composer shows current permissions synced from the main app as read-only text. Hover to inspect different next-turn settings. Change permissions in the main Codex app; `/permissions` only displays chat status. |
+| Permission status | The composer shows the latest permission settings synced from the main app as read-only text. When recorded task execution permissions differ, hover to inspect that execution record. Change permissions in the main Codex app; `/permissions` only displays chat status. |
 | Platform materials | On macOS 26+, Settings and Add Context use the native Liquid Glass backdrop when available. Windows uses a shared translucent background for pickers and expanded previews, with blur on the floating status ball. |
 
 ## Not yet supported in floating chats

@@ -102,7 +102,7 @@ Windows 使用系统 WebView2 承载界面，macOS 使用 WKWebView。React 页�
 | `Markdown.jsx`、`CodePreview.jsx`、`RichPreview.jsx` | Markdown、代码、公式、图表与 HTML 预览 |
 | `ToolDetails.jsx`、`WorkDetails.jsx`、`ChangedFiles.jsx`、`DiffPreview.jsx` | 工具调用详情、工作过程、修改文件和差异展示 |
 | `InteractionMessages.jsx`、`QuestionAnswer.jsx` | 审批、提问和已提交答案展示 |
-| `ModelPicker.jsx`、`ReasoningSlider.jsx`、`PermissionPicker.jsx`、`SpeedPicker.jsx` | 模型、推理强度、权限和响应速度设置 |
+| `ModelPicker.jsx`、`ReasoningSlider.jsx`、`PermissionStatus.jsx`、`SpeedPicker.jsx` | 模型与推理强度设置、只读权限状态和快速模式开关 |
 | `ComposerAttachments.jsx`、`ContextPicker.jsx`、`SlashMenu.jsx` | 附件、上下文、命令和技能选择 |
 | `McpAppCard.jsx`、`McpToolApproval.jsx` | MCP App 的嵌入式卡片、工具交互和卡片审批 |
 | `MessageActions.jsx`、`ForkMessageDialog.jsx` | 消息复制、编辑重发和聊天分叉 |
