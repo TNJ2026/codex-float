@@ -1,10 +1,13 @@
 CodexFloat 将 Codex 聊天放入轻量悬浮窗口，支持置顶、迷你状态球、中英文界面，以及玻璃质感背景。
 
-### v0.1.4 更新
+### v0.1.5 更新
 
-- 在未连接时的默认提示下方添加“同步聊天”按钮，与右上角按钮共用同步逻辑，支持同步中状态及中英文界面。
-- 新增 `doc/architecture.md`，介绍技术组件、应用架构、聊天同步、平台实现与构建发布流程。
-- macOS 继续仅提供 DMG 安装包；Windows 安装包和便携 ZIP 保持不变。
+- 修复聊天切换和连接清理中的竞态，并将断连通知限定到对应聊天。
+- 选择尚未加载的聊天时显示手动打开指引，支持在主应用打开后同步。
+- 聊天列表过滤内部子代理记录，并兼容来源为空的历史聊天。
+- 修复 Windows Shell 路径解析，以及混合 DPI 多屏环境下的窗口恢复尺寸和位置。
+- 改善 macOS 冷启动输入框焦点、光标显示及窗口激活行为。
+- 改善附件缓存、预览、音频播放及悬浮球状态显示，并修复架构文档中的乱码。
 
 ### 下载
 
@@ -24,7 +27,7 @@ Windows 安装包未使用商业代码签名；macOS App 使用本地签名，�
 
 CodexFloat brings your Codex chats into an always-on-top floating window with a mini status ball, Chinese/English UI, and a glass backdrop.
 
-v0.1.4 adds a Sync chat button below the disconnected-state instructions, sharing the existing sync action and loading state. It also adds component and architecture documentation in `doc/architecture.md`. macOS downloads remain DMG-only; Windows downloads are unchanged.
+v0.1.5 fixes chat connection races and cleanup, scopes disconnect notifications to their chat, and guides users to open unloaded chats before syncing. It filters internal agent threads while preserving legacy chats with a null source, corrects Windows shell paths and mixed-DPI window restoration, improves macOS composer focus and window activation, and refines attachment caching, previews, inline audio playback, and status indicators. Architecture documentation is available in `docs/architecture.md`.
 
 Choose the Windows installer or portable ZIP, or the macOS DMG matching your Mac's architecture. The Codex desktop app must be installed and running. ChatGPT integration is currently disabled.
 

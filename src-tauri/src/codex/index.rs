@@ -62,9 +62,7 @@ fn read_indexed_threads(home: &Path, limit: usize) -> Result<Vec<Value>, String>
         // (renamed schema, new database version) silently re-exposes internal chats,
         // so surface it in the log.
         Err(error) if home.join("state_5.sqlite").exists() => {
-            eprintln!(
-                "codex-float: unable to filter internal chats from state_5.sqlite: {error}"
-            );
+            eprintln!("codex-float: unable to filter internal chats from state_5.sqlite: {error}");
         }
         Err(_) => {}
     }
@@ -144,7 +142,8 @@ mod tests {
                 db.execute("INSERT INTO threads VALUES(?1, ?2)", [id, source])
                     .unwrap();
             }
-            db.execute("INSERT INTO threads VALUES('legacy', NULL)", []).unwrap();
+            db.execute("INSERT INTO threads VALUES('legacy', NULL)", [])
+                .unwrap();
         }
         let entries = [
             json!({"id":"legacy","thread_name":"Legacy","updated_at":"2025-12-31"}),
